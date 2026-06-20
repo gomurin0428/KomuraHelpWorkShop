@@ -16,7 +16,9 @@ internal sealed class ProjectCompiler
     {
         var project = HhpProject.Load(_options.ProjectPath!);
         var flat = project.OptionIsYes("Flat");
-        var files = CollectFiles(project, flat);
+        var lcid = TryParseLcid(project.Option("Language")) ?? CultureInfo.CurrentCulture.LCID;
+        var helpTextEncoding = TextEncodingDetector.ForLcid(lcid);
+        var files = CollectFiles(project, flat, helpTextEncoding);
         if (files.MissingRequired.Count > 0 && !_options.AllowMissing)
         {
             throw new CompilationException(
@@ -27,7 +29,7 @@ internal sealed class ProjectCompiler
         WarnForUnsupportedOptions(project);
 
         var outputPath = ResolveOutputPath(project);
-        var metadata = BuildMetadata(project, outputPath, files.DefaultTopicArchivePath, files.GeneratedContentsFile is not null);
+        var metadata = BuildMetadata(project, outputPath, lcid, helpTextEncoding, files.DefaultTopicArchivePath, files.GeneratedContentsFile is not null);
         var writer = new ChmWriter();
         writer.Write(outputPath, files.InputFiles, metadata);
 
@@ -35,7 +37,7 @@ internal sealed class ProjectCompiler
         return new CompilationResult(outputPath, files.InputFiles.Count, outputSize, _warnings);
     }
 
-    private CollectedFiles CollectFiles(HhpProject project, bool flat)
+    private CollectedFiles CollectFiles(HhpProject project, bool flat, System.Text.Encoding helpTextEncoding)
     {
         var byArchivePath = new Dictionary<string, InputFile>(StringComparer.OrdinalIgnoreCase);
         var queue = new Queue<InputFile>();
@@ -80,7 +82,7 @@ internal sealed class ProjectCompiler
                 return;
             }
 
-            var input = new InputFile(sourcePath, archiveRelative, reason);
+            var input = new InputFile(sourcePath, archiveRelative, reason, ConvertSitemapFileIfNeeded(sourcePath, helpTextEncoding));
             byArchivePath.Add(archiveRelative, input);
             queue.Enqueue(input);
 
@@ -128,7 +130,7 @@ internal sealed class ProjectCompiler
         InputFile? generatedContents = null;
         if (project.Option("Contents file") is null)
         {
-            generatedContents = BuildGeneratedContentsFile(byArchivePath.Values, project.TextEncoding);
+            generatedContents = BuildGeneratedContentsFile(byArchivePath.Values, helpTextEncoding);
             byArchivePath[generatedContents.ArchivePath] = generatedContents;
             _warnings.Add("No Contents file was specified; generated a simple table of contents.");
         }
@@ -153,9 +155,8 @@ internal sealed class ProjectCompiler
         return outputPath;
     }
 
-    private ChmMetadata BuildMetadata(HhpProject project, string outputPath, string? defaultTopicArchivePath, bool contentsFileGenerated)
+    private ChmMetadata BuildMetadata(HhpProject project, string outputPath, int lcid, System.Text.Encoding helpTextEncoding, string? defaultTopicArchivePath, bool contentsFileGenerated)
     {
-        var lcid = TryParseLcid(project.Option("Language")) ?? CultureInfo.CurrentCulture.LCID;
         var compiledStem = Path.GetFileNameWithoutExtension(outputPath).ToLowerInvariant();
         var contentsFile = NormalizeOptionArchivePath(project, project.Option("Contents file"), project.OptionIsYes("Flat"))
             ?? (contentsFileGenerated ? "Table of Contents.hhc" : null);
@@ -170,7 +171,7 @@ internal sealed class ProjectCompiler
             DefaultFont: project.Option("Default Font"),
             CompiledFileStem: compiledStem,
             Lcid: lcid,
-            TextEncoding: project.TextEncoding,
+            TextEncoding: helpTextEncoding,
             FullTextSearch: false);
     }
 
@@ -301,6 +302,19 @@ internal sealed class ProjectCompiler
 
         var text = string.Join("\r\n", lines) + "\r\n";
         return new InputFile(string.Empty, "Table of Contents.hhc", "Generated contents", encoding.GetBytes(text));
+    }
+
+    private static byte[]? ConvertSitemapFileIfNeeded(string sourcePath, System.Text.Encoding targetEncoding)
+    {
+        var extension = Path.GetExtension(sourcePath);
+        if (!extension.Equals(".hhc", StringComparison.OrdinalIgnoreCase)
+            && !extension.Equals(".hhk", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var text = TextEncodingDetector.Read(sourcePath).Text;
+        return targetEncoding.GetBytes(text);
     }
 
     private static bool IsHtmlFile(string archivePath)

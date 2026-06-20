@@ -35,6 +35,19 @@ internal static class TextEncodingDetector
         return new TextFile(text.TrimStart('\uFEFF'), encoding);
     }
 
+    public static Encoding ForLcid(int lcid)
+    {
+        try
+        {
+            var culture = CultureInfo.GetCultureInfo(lcid);
+            return Encoding.GetEncoding(culture.TextInfo.ANSICodePage);
+        }
+        catch
+        {
+            return AnsiEncoding;
+        }
+    }
+
     private static Encoding Detect(ReadOnlySpan<byte> bytes)
     {
         if (bytes.StartsWith(new byte[] { 0xEF, 0xBB, 0xBF }))

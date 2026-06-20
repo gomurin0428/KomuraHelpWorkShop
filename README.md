@@ -39,6 +39,7 @@ src\hhc\bin\Debug\net8.0\hhc.exe
 - 非圧縮 CHM コンテナ生成
 - `#SYSTEM`, `#WINDOWS`, `#STRINGS`, `#ITBITS`, `::DataSpace/NameList` の生成
 - `Contents file` 未指定時の簡易 TOC 自動生成
+- `Language` の LCID に基づく HHC/HHK と内部文字列の ANSI コードページ変換
 
 未対応または簡略化:
 
