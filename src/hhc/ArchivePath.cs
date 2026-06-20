@@ -53,7 +53,9 @@ internal static class ArchivePath
             // Keep the original spelling when percent decoding is malformed.
         }
 
-        return value.Replace('/', Path.DirectorySeparatorChar);
+        return value
+            .Replace('\\', Path.DirectorySeparatorChar)
+            .Replace('/', Path.DirectorySeparatorChar);
     }
 
     public static string NormalizeForArchive(string path, bool flat)
@@ -98,5 +100,22 @@ internal static class ArchivePath
     public static string ForDirectory(string archivePath)
     {
         return "/" + NormalizeForArchive(archivePath, flat: false);
+    }
+
+    public static string? DirectoryName(string archivePath)
+    {
+        var normalized = NormalizeForArchive(archivePath, flat: false);
+        var slash = normalized.LastIndexOf('/');
+        return slash <= 0 ? null : normalized[..slash];
+    }
+
+    public static string Combine(string? archiveDirectory, string path)
+    {
+        if (string.IsNullOrEmpty(archiveDirectory))
+        {
+            return path;
+        }
+
+        return archiveDirectory + "/" + path.Replace('\\', '/');
     }
 }

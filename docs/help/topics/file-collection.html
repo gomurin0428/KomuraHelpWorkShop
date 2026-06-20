@@ -32,7 +32,7 @@
       </thead>
       <tbody>
         <tr><td>HTML</td><td><code>href</code> と <code>src</code></td></tr>
-        <tr><td>CSS</td><td><code>u&#114;l(...)</code></td></tr>
+        <tr><td>CSS</td><td><code>u&#114;l(...)</code> と <code>@impo&#114;t "file.css"</code></td></tr>
         <tr><td>HHC / HHK</td><td><code>&lt;param name="Local" value="..."&gt;</code></td></tr>
       </tbody>
     </table>
@@ -68,7 +68,7 @@
   <section>
     <h2>CHM 内のアーカイブパス</h2>
     <p>HHP の下にあるファイルは、HHP からの相対パスで CHM に入ります。たとえば <code>docs\help\topics\usage.html</code> は <code>topics/usage.html</code> になります。</p>
-    <p><code>Flat=yes</code> を指定すると、フォルダーを落としてファイル名だけで格納します。同名ファイルがあるプロジェクトでは重複しやすいため注意してください。</p>
+    <p><code>Flat=yes</code> を指定すると、フォルダーを落としてファイル名だけで格納します。HTML、CSS、HHC、HHK 内のローカル参照もファイル名だけに書き換えます。同名ファイルがあるプロジェクトでは重複しやすいため注意してください。</p>
   </section>
 
   <section>

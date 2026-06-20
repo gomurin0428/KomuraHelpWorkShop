@@ -34,12 +34,13 @@ src\hhc\bin\Debug\net8.0\hhc.exe
 
 - HHP の `[OPTIONS]` と `[FILES]` の読み取り
 - `Compiled file`, `Contents file`, `Index file`, `Default topic`, `Title`, `Language`, `Flat`
-- `.hhc`/`.hhk` の `Local` param、HTML の `href`/`src`、CSS の `url(...)` からのリンク収集
+- `.hhc`/`.hhk` の `Local` param、HTML の `href`/`src`、CSS の `url(...)` と `@import` からのリンク収集
 - ITSF v3 / ITSP / PMGL / PMGI ディレクトリ生成
 - 非圧縮 CHM コンテナ生成
 - `#SYSTEM`, `#WINDOWS`, `#STRINGS`, `#ITBITS`, `::DataSpace/NameList` の生成
 - `Contents file` 未指定時の簡易 TOC 自動生成
 - `Language` の LCID に基づく HHC/HHK と内部文字列の ANSI コードページ変換
+- `Flat=Yes` 指定時の HTML/CSS/HHC/HHK 内ローカル参照のファイル名化
 
 未対応または簡略化:
 

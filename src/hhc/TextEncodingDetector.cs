@@ -27,10 +27,10 @@ internal static class TextEncodingDetector
         }
     }
 
-    public static TextFile Read(string path)
+    public static TextFile Read(string path, Encoding? fallbackEncoding = null)
     {
         var bytes = File.ReadAllBytes(path);
-        var encoding = Detect(bytes);
+        var encoding = Detect(bytes, fallbackEncoding);
         var text = encoding.GetString(bytes);
         return new TextFile(text.TrimStart('\uFEFF'), encoding);
     }
@@ -48,7 +48,7 @@ internal static class TextEncodingDetector
         }
     }
 
-    private static Encoding Detect(ReadOnlySpan<byte> bytes)
+    private static Encoding Detect(ReadOnlySpan<byte> bytes, Encoding? fallbackEncoding)
     {
         if (bytes.StartsWith(new byte[] { 0xEF, 0xBB, 0xBF }))
         {
@@ -72,7 +72,7 @@ internal static class TextEncodingDetector
         }
         catch (DecoderFallbackException)
         {
-            return AnsiEncoding;
+            return fallbackEncoding ?? AnsiEncoding;
         }
     }
 }

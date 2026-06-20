@@ -45,7 +45,7 @@ internal sealed class ProjectCompiler
 
         string? defaultTopicArchivePath = null;
 
-        void AddPath(string rawPath, string reason, bool required, string? baseDirectory = null)
+        void AddPath(string rawPath, string reason, bool required, string? baseDirectory = null, string? archiveBaseDirectory = null)
         {
             var cleaned = ArchivePath.CleanLink(rawPath);
             if (cleaned is null)
@@ -54,7 +54,7 @@ internal sealed class ProjectCompiler
             }
 
             var sourcePath = ResolveSourcePath(project.ProjectDirectory, cleaned, baseDirectory);
-            var archiveRelative = MakeArchiveRelative(project.ProjectDirectory, sourcePath, cleaned, flat);
+            var archiveRelative = MakeArchiveRelative(project.ProjectDirectory, sourcePath, cleaned, flat, archiveBaseDirectory);
             if (archiveRelative.Length == 0)
             {
                 return;
@@ -82,7 +82,7 @@ internal sealed class ProjectCompiler
                 return;
             }
 
-            var input = new InputFile(sourcePath, archiveRelative, reason, ConvertSitemapFileIfNeeded(sourcePath, helpTextEncoding));
+            var input = new InputFile(sourcePath, archiveRelative, reason, BuildInputData(sourcePath, helpTextEncoding, flat));
             byArchivePath.Add(archiveRelative, input);
             queue.Enqueue(input);
 
@@ -120,9 +120,15 @@ internal sealed class ProjectCompiler
             while (queue.Count > 0)
             {
                 var current = queue.Dequeue();
-                foreach (var link in LinkScanner.ExtractLinks(current.SourcePath))
+                var archiveBaseDirectory = ArchivePath.DirectoryName(current.ArchivePath);
+                foreach (var link in LinkScanner.ExtractLinks(current.SourcePath, helpTextEncoding))
                 {
-                    AddPath(link, $"linked from {current.ArchivePath}", required: false, Path.GetDirectoryName(current.SourcePath));
+                    AddPath(
+                        link,
+                        $"linked from {current.ArchivePath}",
+                        required: false,
+                        Path.GetDirectoryName(current.SourcePath),
+                        archiveBaseDirectory);
                 }
             }
         }
@@ -213,6 +219,11 @@ internal sealed class ProjectCompiler
         {
             _warnings.Add("[MERGE FILES] is preserved only as project metadata; merged CHM collections are not generated.");
         }
+
+        if (project.Sections.ContainsKey("WINDOWS"))
+        {
+            _warnings.Add("[WINDOWS] custom settings are not parsed; a generated default window definition is used.");
+        }
     }
 
     private static int? TryParseLcid(string? language)
@@ -249,19 +260,32 @@ internal sealed class ProjectCompiler
         return Path.GetFullPath(Path.Combine(baseDirectory ?? projectDirectory, path));
     }
 
-    private static string MakeArchiveRelative(string projectDirectory, string sourcePath, string originalPath, bool flat)
+    private static string MakeArchiveRelative(string projectDirectory, string sourcePath, string originalPath, bool flat, string? archiveBaseDirectory = null)
     {
         string relative;
         if (IsUnderDirectory(projectDirectory, sourcePath))
         {
             relative = Path.GetRelativePath(projectDirectory, sourcePath);
         }
+        else if (!string.IsNullOrEmpty(archiveBaseDirectory) && !IsRootedPath(originalPath))
+        {
+            relative = ArchivePath.Combine(archiveBaseDirectory, originalPath);
+        }
         else
         {
-            relative = Path.IsPathRooted(originalPath) ? Path.GetFileName(sourcePath) : originalPath;
+            relative = IsRootedPath(originalPath) ? Path.GetFileName(sourcePath) : originalPath;
         }
 
         return ArchivePath.NormalizeForArchive(relative, flat);
+    }
+
+    private static bool IsRootedPath(string path)
+    {
+        return Path.IsPathRooted(path)
+            || (path.Length >= 3
+                && char.IsLetter(path[0])
+                && path[1] == ':'
+                && (path[2] == '\\' || path[2] == '/'));
     }
 
     private static bool IsUnderDirectory(string directory, string path)
@@ -304,17 +328,35 @@ internal sealed class ProjectCompiler
         return new InputFile(string.Empty, "Table of Contents.hhc", "Generated contents", encoding.GetBytes(text));
     }
 
-    private static byte[]? ConvertSitemapFileIfNeeded(string sourcePath, System.Text.Encoding targetEncoding)
+    private static byte[]? BuildInputData(string sourcePath, System.Text.Encoding helpTextEncoding, bool flat)
     {
         var extension = Path.GetExtension(sourcePath);
-        if (!extension.Equals(".hhc", StringComparison.OrdinalIgnoreCase)
-            && !extension.Equals(".hhk", StringComparison.OrdinalIgnoreCase))
+        if (extension.Equals(".hhc", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".hhk", StringComparison.OrdinalIgnoreCase))
+        {
+            var text = TextEncodingDetector.Read(sourcePath, helpTextEncoding).Text;
+            if (flat)
+            {
+                text = LinkScanner.RewriteLinksForFlatArchive(text);
+            }
+
+            return helpTextEncoding.GetBytes(text);
+        }
+
+        if (!flat || !IsRewritableTextFile(extension))
         {
             return null;
         }
 
-        var text = TextEncodingDetector.Read(sourcePath).Text;
-        return targetEncoding.GetBytes(text);
+        var textFile = TextEncodingDetector.Read(sourcePath, helpTextEncoding);
+        return textFile.Encoding.GetBytes(LinkScanner.RewriteLinksForFlatArchive(textFile.Text));
+    }
+
+    private static bool IsRewritableTextFile(string extension)
+    {
+        return extension.Equals(".htm", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".html", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".css", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsHtmlFile(string archivePath)
