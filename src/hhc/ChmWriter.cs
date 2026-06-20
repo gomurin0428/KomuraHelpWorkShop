@@ -42,12 +42,16 @@ internal sealed class ChmWriter
             ["/#ITBITS"] = new("/#ITBITS", Array.Empty<byte>(), isUserFile: false)
         };
 
+        var strings = BuildStringsFile(metadata);
+        entries["/#STRINGS"] = new ChmEntry("/#STRINGS", strings.Data, isUserFile: false);
+        entries["/#WINDOWS"] = new ChmEntry("/#WINDOWS", BuildWindowsFile(metadata, strings), isUserFile: false);
+
         foreach (var input in inputFiles)
         {
             var name = ArchivePath.ForDirectory(input.ArchivePath);
             if (!entries.ContainsKey(name))
             {
-                entries[name] = new ChmEntry(name, File.ReadAllBytes(input.SourcePath), isUserFile: true);
+                entries[name] = new ChmEntry(name, input.Data ?? File.ReadAllBytes(input.SourcePath), isUserFile: true);
             }
         }
 
@@ -382,6 +386,106 @@ internal sealed class ChmWriter
         return stream.ToArray();
     }
 
+    private static StringTable BuildStringsFile(ChmMetadata metadata)
+    {
+        var table = new StringTable(metadata.TextEncoding);
+        _ = table.Add(string.Empty);
+        _ = table.Add(metadata.DefaultWindow ?? "main");
+        _ = table.Add(metadata.Title);
+        if (metadata.ContentsFile is not null)
+        {
+            _ = table.Add(metadata.ContentsFile);
+        }
+
+        if (metadata.IndexFile is not null)
+        {
+            _ = table.Add(metadata.IndexFile);
+        }
+
+        if (metadata.DefaultTopic is not null)
+        {
+            _ = table.Add(metadata.DefaultTopic);
+        }
+
+        return table;
+    }
+
+    private static byte[] BuildWindowsFile(ChmMetadata metadata, StringTable strings)
+    {
+        const int entrySize = 196;
+        var data = new byte[8 + entrySize];
+        var span = data.AsSpan();
+        BinaryUtil.WriteInt32LittleEndian(span, 0, 1);
+        BinaryUtil.WriteInt32LittleEndian(span, 4, entrySize);
+
+        var entry = span[8..];
+        BinaryUtil.WriteInt32LittleEndian(entry, 0x00, entrySize);
+        BinaryUtil.WriteInt32LittleEndian(entry, 0x04, 0);
+        BinaryUtil.WriteInt32LittleEndian(entry, 0x08, strings.OffsetOf(metadata.DefaultWindow ?? "main"));
+
+        var validMembers =
+            0x00000002  // navigation pane style
+            | 0x00000010 // initial position
+            | 0x00000020 // navigation pane width
+            | 0x00000040 // show state
+            | 0x00000100 // toolbar buttons
+            | 0x00000200 // navigation pane open/closed
+            | 0x00000400 // tab position
+            | 0x00001000 // history count
+            | 0x00002000; // default pane
+        BinaryUtil.WriteInt32LittleEndian(entry, 0x0C, validMembers);
+
+        var navStyle =
+            0x00000020  // tri-pane
+            | 0x00000040 // no text on toolbar buttons
+            | 0x00000100 // sync current topic
+            | 0x00002000; // current HTML title in title bar
+        BinaryUtil.WriteInt32LittleEndian(entry, 0x10, navStyle);
+        BinaryUtil.WriteInt32LittleEndian(entry, 0x14, strings.OffsetOf(metadata.Title));
+
+        BinaryUtil.WriteInt32LittleEndian(entry, 0x20, 100);
+        BinaryUtil.WriteInt32LittleEndian(entry, 0x24, 100);
+        BinaryUtil.WriteInt32LittleEndian(entry, 0x28, 1000);
+        BinaryUtil.WriteInt32LittleEndian(entry, 0x2C, 760);
+        BinaryUtil.WriteInt32LittleEndian(entry, 0x30, 1);
+        BinaryUtil.WriteInt32LittleEndian(entry, 0x4C, 260);
+
+        if (metadata.ContentsFile is not null)
+        {
+            BinaryUtil.WriteInt32LittleEndian(entry, 0x60, strings.OffsetOf(metadata.ContentsFile));
+        }
+
+        if (metadata.IndexFile is not null)
+        {
+            BinaryUtil.WriteInt32LittleEndian(entry, 0x64, strings.OffsetOf(metadata.IndexFile));
+        }
+
+        if (metadata.DefaultTopic is not null)
+        {
+            BinaryUtil.WriteInt32LittleEndian(entry, 0x68, strings.OffsetOf(metadata.DefaultTopic));
+            BinaryUtil.WriteInt32LittleEndian(entry, 0x6C, strings.OffsetOf(metadata.DefaultTopic));
+        }
+
+        const int toolbarButtons =
+            0x00000002 // Hide/Show
+            | 0x00000004 // Back
+            | 0x00000008 // Forward
+            | 0x00000010 // Stop
+            | 0x00000020 // Refresh
+            | 0x00000040 // Home
+            | 0x00000800 // Locate
+            | 0x00001000 // Options
+            | 0x00002000 // Print
+            | 0x00100000; // Font
+        BinaryUtil.WriteInt32LittleEndian(entry, 0x70, toolbarButtons);
+        BinaryUtil.WriteInt32LittleEndian(entry, 0x74, 0);
+        BinaryUtil.WriteInt32LittleEndian(entry, 0x78, 0);
+        BinaryUtil.WriteInt32LittleEndian(entry, 0x7C, 0);
+        BinaryUtil.WriteInt32LittleEndian(entry, 0x98, 30);
+
+        return data;
+    }
+
     private static byte[] BuildSystemCode4(ChmMetadata metadata)
     {
         using var stream = new MemoryStream();
@@ -468,4 +572,38 @@ internal sealed class ChmWriter
     private sealed record DirectoryEntryBytes(string Name, byte[] Bytes);
 
     private sealed record PmglChunk(string FirstName, byte[] Bytes);
+
+    private sealed class StringTable
+    {
+        private readonly Encoding _encoding;
+        private readonly MemoryStream _stream = new();
+        private readonly Dictionary<string, int> _offsets = new(StringComparer.Ordinal);
+
+        public StringTable(Encoding encoding)
+        {
+            _encoding = encoding;
+        }
+
+        public byte[] Data => _stream.ToArray();
+
+        public int Add(string value)
+        {
+            if (_offsets.TryGetValue(value, out var existing))
+            {
+                return existing;
+            }
+
+            var offset = checked((int)_stream.Position);
+            var bytes = _encoding.GetBytes(value);
+            _stream.Write(bytes);
+            _stream.WriteByte(0);
+            _offsets[value] = offset;
+            return offset;
+        }
+
+        public int OffsetOf(string value)
+        {
+            return _offsets.TryGetValue(value, out var offset) ? offset : Add(value);
+        }
+    }
 }

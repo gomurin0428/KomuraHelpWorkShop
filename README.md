@@ -37,7 +37,8 @@ src\hhc\bin\Debug\net8.0\hhc.exe
 - `.hhc`/`.hhk` の `Local` param、HTML の `href`/`src`、CSS の `url(...)` からのリンク収集
 - ITSF v3 / ITSP / PMGL / PMGI ディレクトリ生成
 - 非圧縮 CHM コンテナ生成
-- `#SYSTEM`, `#ITBITS`, `::DataSpace/NameList` の生成
+- `#SYSTEM`, `#WINDOWS`, `#STRINGS`, `#ITBITS`, `::DataSpace/NameList` の生成
+- `Contents file` 未指定時の簡易 TOC 自動生成
 
 未対応または簡略化:
 

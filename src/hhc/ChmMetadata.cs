@@ -7,6 +7,7 @@ internal sealed record ChmMetadata(
     string? DefaultTopic,
     string? ContentsFile,
     string? IndexFile,
+    bool ContentsFileGenerated,
     string? DefaultWindow,
     string? DefaultFont,
     string CompiledFileStem,

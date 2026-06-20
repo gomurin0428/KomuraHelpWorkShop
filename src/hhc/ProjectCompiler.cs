@@ -27,7 +27,7 @@ internal sealed class ProjectCompiler
         WarnForUnsupportedOptions(project);
 
         var outputPath = ResolveOutputPath(project);
-        var metadata = BuildMetadata(project, outputPath, files.DefaultTopicArchivePath);
+        var metadata = BuildMetadata(project, outputPath, files.DefaultTopicArchivePath, files.GeneratedContentsFile is not null);
         var writer = new ChmWriter();
         writer.Write(outputPath, files.InputFiles, metadata);
 
@@ -125,7 +125,15 @@ internal sealed class ProjectCompiler
             }
         }
 
-        return new CollectedFiles(byArchivePath.Values.OrderBy(f => f.ArchivePath, ChmPathComparer.Instance).ToList(), missingRequired, defaultTopicArchivePath);
+        InputFile? generatedContents = null;
+        if (project.Option("Contents file") is null)
+        {
+            generatedContents = BuildGeneratedContentsFile(byArchivePath.Values, project.TextEncoding);
+            byArchivePath[generatedContents.ArchivePath] = generatedContents;
+            _warnings.Add("No Contents file was specified; generated a simple table of contents.");
+        }
+
+        return new CollectedFiles(byArchivePath.Values.OrderBy(f => f.ArchivePath, ChmPathComparer.Instance).ToList(), missingRequired, defaultTopicArchivePath, generatedContents?.ArchivePath);
     }
 
     private string ResolveOutputPath(HhpProject project)
@@ -145,16 +153,20 @@ internal sealed class ProjectCompiler
         return outputPath;
     }
 
-    private ChmMetadata BuildMetadata(HhpProject project, string outputPath, string? defaultTopicArchivePath)
+    private ChmMetadata BuildMetadata(HhpProject project, string outputPath, string? defaultTopicArchivePath, bool contentsFileGenerated)
     {
         var lcid = TryParseLcid(project.Option("Language")) ?? CultureInfo.CurrentCulture.LCID;
         var compiledStem = Path.GetFileNameWithoutExtension(outputPath).ToLowerInvariant();
+        var contentsFile = NormalizeOptionArchivePath(project, project.Option("Contents file"), project.OptionIsYes("Flat"))
+            ?? (contentsFileGenerated ? "Table of Contents.hhc" : null);
+        var defaultWindow = project.Option("Default Window") ?? "main";
         return new ChmMetadata(
             Title: project.Option("Title") ?? Path.GetFileNameWithoutExtension(project.ProjectPath),
             DefaultTopic: defaultTopicArchivePath,
-            ContentsFile: NormalizeOptionArchivePath(project, project.Option("Contents file"), project.OptionIsYes("Flat")),
+            ContentsFile: contentsFile,
             IndexFile: NormalizeOptionArchivePath(project, project.Option("Index file"), project.OptionIsYes("Flat")),
-            DefaultWindow: project.Option("Default Window"),
+            ContentsFileGenerated: contentsFileGenerated,
+            DefaultWindow: defaultWindow,
             DefaultFont: project.Option("Default Font"),
             CompiledFileStem: compiledStem,
             Lcid: lcid,
@@ -258,10 +270,60 @@ internal sealed class ProjectCompiler
         return full.StartsWith(dir, StringComparison.OrdinalIgnoreCase);
     }
 
+    private static InputFile BuildGeneratedContentsFile(IEnumerable<InputFile> files, System.Text.Encoding encoding)
+    {
+        var topics = files
+            .Where(f => IsHtmlFile(f.ArchivePath))
+            .OrderBy(f => f.ArchivePath, ChmPathComparer.Instance)
+            .ToList();
+
+        var lines = new List<string>
+        {
+            "<!DOCTYPE HTML PUBLIC \"-//IETF//DTD HTML//EN\">",
+            "<html>",
+            "<head><meta name=\"GENERATOR\" content=\"KomuraHhc\"></head>",
+            "<body>",
+            "<ul>"
+        };
+
+        foreach (var topic in topics)
+        {
+            var title = Path.GetFileNameWithoutExtension(topic.ArchivePath);
+            lines.Add("  <li><object type=\"text/sitemap\">");
+            lines.Add($"    <param name=\"Name\" value=\"{EscapeHtml(title)}\">");
+            lines.Add($"    <param name=\"Local\" value=\"{EscapeHtml(topic.ArchivePath)}\">");
+            lines.Add("  </object></li>");
+        }
+
+        lines.Add("</ul>");
+        lines.Add("</body>");
+        lines.Add("</html>");
+
+        var text = string.Join("\r\n", lines) + "\r\n";
+        return new InputFile(string.Empty, "Table of Contents.hhc", "Generated contents", encoding.GetBytes(text));
+    }
+
+    private static bool IsHtmlFile(string archivePath)
+    {
+        var extension = Path.GetExtension(archivePath);
+        return extension.Equals(".htm", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".html", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string EscapeHtml(string value)
+    {
+        return value
+            .Replace("&", "&amp;", StringComparison.Ordinal)
+            .Replace("\"", "&quot;", StringComparison.Ordinal)
+            .Replace("<", "&lt;", StringComparison.Ordinal)
+            .Replace(">", "&gt;", StringComparison.Ordinal);
+    }
+
     private sealed record CollectedFiles(
         IReadOnlyList<InputFile> InputFiles,
         IReadOnlyList<string> MissingRequired,
-        string? DefaultTopicArchivePath);
+        string? DefaultTopicArchivePath,
+        string? GeneratedContentsFile);
 }
 
-internal sealed record InputFile(string SourcePath, string ArchivePath, string Reason);
+internal sealed record InputFile(string SourcePath, string ArchivePath, string Reason, byte[]? Data = null);
