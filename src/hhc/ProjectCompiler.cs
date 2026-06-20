@@ -113,7 +113,7 @@ internal sealed class ProjectCompiler
             AddPath(indexFile, "Index file", required: true, isProjectPath: true);
         }
 
-        var defaultTopic = project.Option("Default topic") ?? project.Files.FirstOrDefault();
+        var defaultTopic = project.Option("Default topic") ?? project.Files.FirstOrDefault(IsHtmlPath);
         if (defaultTopic is not null)
         {
             AddPath(defaultTopic, "Default topic", required: true, isProjectPath: true);
@@ -153,7 +153,7 @@ internal sealed class ProjectCompiler
 
     private string ResolveOutputPath(HhpProject project)
     {
-        var configured = _options.OutputPath ?? project.Option("Compiled file");
+        var configured = NormalizeFileSystemPath(_options.OutputPath ?? project.Option("Compiled file"));
         if (string.IsNullOrWhiteSpace(configured))
         {
             configured = Path.ChangeExtension(Path.GetFileName(project.ProjectPath), ".chm");
@@ -166,6 +166,13 @@ internal sealed class ProjectCompiler
         outputPath = Path.GetFullPath(outputPath);
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? project.ProjectDirectory);
         return outputPath;
+    }
+
+    private static string? NormalizeFileSystemPath(string? path)
+    {
+        return path?
+            .Replace('\\', Path.DirectorySeparatorChar)
+            .Replace('/', Path.DirectorySeparatorChar);
     }
 
     private ChmMetadata BuildMetadata(HhpProject project, string outputPath, int lcid, System.Text.Encoding helpTextEncoding, string? defaultTopicArchivePath, bool contentsFileGenerated)
@@ -386,6 +393,12 @@ internal sealed class ProjectCompiler
         var extension = Path.GetExtension(archivePath);
         return extension.Equals(".htm", StringComparison.OrdinalIgnoreCase)
             || extension.Equals(".html", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsHtmlPath(string path)
+    {
+        var cleaned = ArchivePath.CleanProjectPath(path) ?? path;
+        return IsHtmlFile(cleaned);
     }
 
     private static string EscapeHtml(string value)

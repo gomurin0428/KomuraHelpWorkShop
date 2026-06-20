@@ -27,6 +27,13 @@ internal static class ArchivePath
             return null;
         }
 
+        if (stripFragmentAndQuery
+            && (value.StartsWith("//", StringComparison.Ordinal)
+                || value.StartsWith(@"\\", StringComparison.Ordinal)))
+        {
+            return null;
+        }
+
         foreach (var scheme in ExternalSchemes)
         {
             if (value.StartsWith(scheme, StringComparison.OrdinalIgnoreCase))
