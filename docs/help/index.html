@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>Komura HTML Help Compiler Help</title>
+  <link rel="stylesheet" href="styles/help.css">
+</head>
+<body>
+  <header class="page-header">
+    <p class="eyebrow">Komura Help Workshop</p>
+    <h1>Komura HTML Help Compiler</h1>
+    <p class="lead">Microsoft HTML Help Workshop の <code>hhc.exe</code> と同じ用途で使う、ローカル実装の CHM コンパイラです。</p>
+  </header>
+
+  <section>
+    <h2>このヘルプについて</h2>
+    <p>この CHM は、Komura HTML Help Compiler 自身で生成されています。HHP プロジェクトを読み込み、HTML、TOC、Index、CSS などを非圧縮 CHM コンテナへ格納します。</p>
+  </section>
+
+  <section>
+    <h2>まず試す</h2>
+    <ol>
+      <li><a href="topics/build.html">ビルドする</a></li>
+      <li><a href="topics/usage.html">サンプル HHP をコンパイルする</a></li>
+      <li><a href="topics/troubleshooting.html">表示に問題がある場合の確認をする</a></li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>主な機能</h2>
+    <ul>
+      <li><code>.hhp</code> の <code>[OPTIONS]</code> と <code>[FILES]</code> を読み取ります。</li>
+      <li><code>.hhc</code> / <code>.hhk</code> / HTML / CSS からリンク先ファイルを収集します。</li>
+      <li><code>#SYSTEM</code>、<code>#WINDOWS</code>、<code>#STRINGS</code> を生成し、HTML Help Viewer の基本表示を構成します。</li>
+      <li>ファイル数が多いプロジェクト向けに PMGI / PMGL ディレクトリを生成します。</li>
+    </ul>
+  </section>
+</body>
+</html>

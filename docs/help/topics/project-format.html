@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>HHP プロジェクト形式</title>
+  <link rel="stylesheet" href="../styles/help.css">
+</head>
+<body>
+  <header class="page-header">
+    <p class="eyebrow">Project Format</p>
+    <h1>HHP プロジェクト形式</h1>
+    <p class="lead">HTML Help Workshop の HHP 形式のうち、基本的なプロジェクト設定を読み取ります。</p>
+  </header>
+
+  <section>
+    <h2>対応する OPTIONS</h2>
+    <ul>
+      <li><code>Compiled file</code></li>
+      <li><code>Contents file</code></li>
+      <li><code>Index file</code></li>
+      <li><code>Default topic</code></li>
+      <li><code>Default Window</code></li>
+      <li><code>Default Font</code></li>
+      <li><code>Title</code></li>
+      <li><code>Language</code></li>
+      <li><code>Flat</code></li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>リンク収集</h2>
+    <p>既定では、明示されたファイルに加えて、HTML の <code>href</code> / <code>src</code>、CSS の URL 参照、HHC/HHK の <code>Local</code> param から参照ファイルを収集します。</p>
+    <p>リンク収集を止めたい場合は <code>--no-link-scan</code> を指定します。</p>
+  </section>
+
+  <section>
+    <h2>TOC がない場合</h2>
+    <p><code>Contents file</code> が指定されていない場合は、HTML ファイル一覧から <code>Table of Contents.hhc</code> を自動生成します。</p>
+  </section>
+</body>
+</html>

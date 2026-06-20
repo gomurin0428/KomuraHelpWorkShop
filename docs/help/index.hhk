@@ -1,0 +1,35 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="GENERATOR" content="KomuraHhc">
+</head>
+<body>
+<ul>
+  <li><object type="text/sitemap">
+    <param name="Name" value="CHM">
+    <param name="Local" value="index.html">
+  </object></li>
+  <li><object type="text/sitemap">
+    <param name="Name" value="HHP">
+    <param name="Local" value="topics/project-format.html">
+  </object></li>
+  <li><object type="text/sitemap">
+    <param name="Name" value="PMGI">
+    <param name="Local" value="topics/compatibility.html">
+  </object></li>
+  <li><object type="text/sitemap">
+    <param name="Name" value="PMGL">
+    <param name="Local" value="topics/compatibility.html">
+  </object></li>
+  <li><object type="text/sitemap">
+    <param name="Name" value="コマンドライン">
+    <param name="Local" value="topics/usage.html">
+  </object></li>
+  <li><object type="text/sitemap">
+    <param name="Name" value="トラブルシュート">
+    <param name="Local" value="topics/troubleshooting.html">
+  </object></li>
+</ul>
+</body>
+</html>

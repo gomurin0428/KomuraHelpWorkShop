@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>使い方</title>
+  <link rel="stylesheet" href="../styles/help.css">
+</head>
+<body>
+  <header class="page-header">
+    <p class="eyebrow">Usage</p>
+    <h1>使い方</h1>
+    <p class="lead">HHP プロジェクトを指定して CHM を生成します。</p>
+  </header>
+
+  <section>
+    <h2>基本形</h2>
+    <pre><code>hhc &lt;project.hhp&gt; [--out &lt;file.chm&gt;] [options]</code></pre>
+  </section>
+
+  <section>
+    <h2>サンプルをコンパイルする</h2>
+    <pre><code>.\src\hhc\bin\Debug\net8.0\hhc.exe .\examples\basic\help.hhp</code></pre>
+  </section>
+
+  <section>
+    <h2>オプション</h2>
+    <table>
+      <thead>
+        <tr><th>オプション</th><th>説明</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>-o</code>, <code>--out &lt;path&gt;</code></td><td><code>[OPTIONS]</code> の <code>Compiled file</code> を上書きします。</td></tr>
+        <tr><td><code>--no-link-scan</code></td><td>明示されたファイルだけを格納します。</td></tr>
+        <tr><td><code>--allow-missing</code></td><td>入力ファイル欠落を警告にして CHM を生成します。</td></tr>
+        <tr><td><code>-v</code>, <code>--verbose</code></td><td>収集したファイルを表示します。</td></tr>
+        <tr><td><code>--version</code></td><td>バージョン情報を表示します。</td></tr>
+      </tbody>
+    </table>
+  </section>
+</body>
+</html>

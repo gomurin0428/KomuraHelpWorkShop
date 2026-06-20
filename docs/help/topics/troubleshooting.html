@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>トラブルシュート</title>
+  <link rel="stylesheet" href="../styles/help.css">
+</head>
+<body>
+  <header class="page-header">
+    <p class="eyebrow">Troubleshooting</p>
+    <h1>トラブルシュート</h1>
+    <p class="lead">生成した CHM が期待どおりに表示されない場合の確認項目です。</p>
+  </header>
+
+  <section>
+    <h2>本文だけの画面になる</h2>
+    <p><code>#WINDOWS</code>、<code>#STRINGS</code>、<code>Contents file</code> の情報が不足すると、HTML Help Viewer はナビゲーションペインなしで開くことがあります。</p>
+    <p>バージョン <code>0.1.1</code> 以降では既定ウィンドウと簡易 TOC の生成を追加しています。古い生成物は再コンパイルしてください。</p>
+  </section>
+
+  <section>
+    <h2>ファイルが表示されない</h2>
+    <ul>
+      <li><code>[FILES]</code> に含まれるパスが HHP からの相対パスになっているか確認します。</li>
+      <li>リンク収集を無効化していないか確認します。</li>
+      <li><code>--verbose</code> を付けて、収集されたファイル一覧を確認します。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Windows でブロックされる</h2>
+    <p>インターネットから取得した CHM は Windows によってブロックされることがあります。ファイルのプロパティからブロック解除してから開いてください。</p>
+  </section>
+
+  <section>
+    <h2>中身を確認する</h2>
+    <pre><code>hh.exe -decompile out-dir file.chm</code></pre>
+    <p>展開できれば、CHM コンテナとしては HTML Help Viewer に認識されています。</p>
+  </section>
+</body>
+</html>
