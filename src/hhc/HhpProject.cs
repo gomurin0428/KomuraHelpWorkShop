@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 
 namespace Komura.Hhc;
@@ -35,7 +36,8 @@ internal sealed class HhpProject
             throw new CompilationException($"Project file not found: {fullPath}");
         }
 
-        var textFile = TextEncodingDetector.Read(fullPath);
+        var declaredEncoding = DetectDeclaredLanguageEncoding(fullPath);
+        var textFile = TextEncodingDetector.Read(fullPath, declaredEncoding);
         var options = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var sections = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         string? section = null;
@@ -122,5 +124,69 @@ internal sealed class HhpProject
         }
 
         return value;
+    }
+
+    private static Encoding? DetectDeclaredLanguageEncoding(string path)
+    {
+        var bytes = File.ReadAllBytes(path);
+        var asciiText = Encoding.Latin1.GetString(bytes);
+        string? section = null;
+
+        foreach (var rawLine in SplitLines(asciiText))
+        {
+            var line = rawLine.Trim();
+            if (line.Length == 0 || line.StartsWith(';'))
+            {
+                continue;
+            }
+
+            if (line.StartsWith('[') && line.EndsWith(']') && line.Length > 2)
+            {
+                section = line[1..^1].Trim();
+                continue;
+            }
+
+            if (!string.Equals(section, "OPTIONS", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var equals = line.IndexOf('=');
+            if (equals <= 0)
+            {
+                continue;
+            }
+
+            var key = line[..equals].Trim();
+            if (!key.Equals("Language", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var value = Unquote(line[(equals + 1)..].Trim());
+            if (TryParseLcid(value) is { } lcid)
+            {
+                return TextEncodingDetector.ForLcid(lcid);
+            }
+        }
+
+        return null;
+    }
+
+    private static int? TryParseLcid(string? language)
+    {
+        if (string.IsNullOrWhiteSpace(language))
+        {
+            return null;
+        }
+
+        var token = language.Trim().Split(new[] { ' ', '\t', ',' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        if (token is null)
+        {
+            return null;
+        }
+
+        token = token.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? token[2..] : token;
+        return int.TryParse(token, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var lcid) ? lcid : null;
     }
 }

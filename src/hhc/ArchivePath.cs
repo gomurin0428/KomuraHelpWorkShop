@@ -11,6 +11,16 @@ internal static class ArchivePath
 
     public static string? CleanLink(string raw)
     {
+        return Clean(raw, stripFragmentAndQuery: true);
+    }
+
+    public static string? CleanProjectPath(string raw)
+    {
+        return Clean(raw, stripFragmentAndQuery: false);
+    }
+
+    private static string? Clean(string raw, bool stripFragmentAndQuery)
+    {
         var value = WebUtility.HtmlDecode(raw).Trim();
         if (value.Length == 0 || value.StartsWith('#'))
         {
@@ -32,10 +42,13 @@ internal static class ArchivePath
             return null;
         }
 
-        var cut = value.IndexOfAny(new[] { '#', '?' });
-        if (cut >= 0)
+        if (stripFragmentAndQuery)
         {
-            value = value[..cut];
+            var cut = value.IndexOfAny(new[] { '#', '?' });
+            if (cut >= 0)
+            {
+                value = value[..cut];
+            }
         }
 
         value = value.Trim();

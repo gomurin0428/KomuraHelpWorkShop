@@ -45,15 +45,21 @@ internal sealed class ProjectCompiler
 
         string? defaultTopicArchivePath = null;
 
-        void AddPath(string rawPath, string reason, bool required, string? baseDirectory = null, string? archiveBaseDirectory = null)
+        void AddPath(
+            string rawPath,
+            string reason,
+            bool required,
+            bool isProjectPath,
+            string? baseDirectory = null,
+            string? archiveBaseDirectory = null)
         {
-            var cleaned = ArchivePath.CleanLink(rawPath);
+            var cleaned = isProjectPath ? ArchivePath.CleanProjectPath(rawPath) : ArchivePath.CleanLink(rawPath);
             if (cleaned is null)
             {
                 return;
             }
 
-            var sourcePath = ResolveSourcePath(project.ProjectDirectory, cleaned, baseDirectory);
+            var sourcePath = ResolveSourcePath(project.ProjectDirectory, cleaned, baseDirectory, isProjectPath);
             var archiveRelative = MakeArchiveRelative(project.ProjectDirectory, sourcePath, cleaned, flat, archiveBaseDirectory);
             if (archiveRelative.Length == 0)
             {
@@ -94,24 +100,24 @@ internal sealed class ProjectCompiler
 
         foreach (var file in project.Files)
         {
-            AddPath(file, "[FILES]", required: true);
+            AddPath(file, "[FILES]", required: true, isProjectPath: true);
         }
 
         if (project.Option("Contents file") is { } contentsFile)
         {
-            AddPath(contentsFile, "Contents file", required: true);
+            AddPath(contentsFile, "Contents file", required: true, isProjectPath: true);
         }
 
         if (project.Option("Index file") is { } indexFile)
         {
-            AddPath(indexFile, "Index file", required: true);
+            AddPath(indexFile, "Index file", required: true, isProjectPath: true);
         }
 
         var defaultTopic = project.Option("Default topic") ?? project.Files.FirstOrDefault();
         if (defaultTopic is not null)
         {
-            AddPath(defaultTopic, "Default topic", required: true);
-            var defaultSource = ResolveSourcePath(project.ProjectDirectory, ArchivePath.CleanLink(defaultTopic) ?? defaultTopic, null);
+            AddPath(defaultTopic, "Default topic", required: true, isProjectPath: true);
+            var defaultSource = ResolveSourcePath(project.ProjectDirectory, ArchivePath.CleanProjectPath(defaultTopic) ?? defaultTopic, null, isProjectPath: true);
             defaultTopicArchivePath = MakeArchiveRelative(project.ProjectDirectory, defaultSource, defaultTopic, flat);
         }
 
@@ -127,8 +133,9 @@ internal sealed class ProjectCompiler
                         link,
                         $"linked from {current.ArchivePath}",
                         required: false,
-                        Path.GetDirectoryName(current.SourcePath),
-                        archiveBaseDirectory);
+                        isProjectPath: false,
+                        baseDirectory: Path.GetDirectoryName(current.SourcePath),
+                        archiveBaseDirectory: archiveBaseDirectory);
                 }
             }
         }
@@ -188,13 +195,13 @@ internal sealed class ProjectCompiler
             return null;
         }
 
-        var cleaned = ArchivePath.CleanLink(path);
+        var cleaned = ArchivePath.CleanProjectPath(path);
         if (cleaned is null)
         {
             return null;
         }
 
-        var source = ResolveSourcePath(project.ProjectDirectory, cleaned, null);
+        var source = ResolveSourcePath(project.ProjectDirectory, cleaned, null, isProjectPath: true);
         return MakeArchiveRelative(project.ProjectDirectory, source, cleaned, flat);
     }
 
@@ -243,14 +250,13 @@ internal sealed class ProjectCompiler
         return int.TryParse(token, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var lcid) ? lcid : null;
     }
 
-    private static string ResolveSourcePath(string projectDirectory, string path, string? baseDirectory)
+    private static string ResolveSourcePath(string projectDirectory, string path, string? baseDirectory, bool isProjectPath)
     {
         if (Path.IsPathRooted(path))
         {
-            var rooted = path.TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            var root = Path.GetPathRoot(path);
-            if (root is not null && !root.Contains(':'))
+            if (!isProjectPath && IsRootRelativePath(path))
             {
+                var rooted = path.TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
                 return Path.GetFullPath(Path.Combine(projectDirectory, rooted));
             }
 
@@ -258,6 +264,22 @@ internal sealed class ProjectCompiler
         }
 
         return Path.GetFullPath(Path.Combine(baseDirectory ?? projectDirectory, path));
+    }
+
+    private static bool IsRootRelativePath(string path)
+    {
+        if (IsUncPath(path))
+        {
+            return false;
+        }
+
+        return Path.GetPathRoot(path) is { } root && !root.Contains(':');
+    }
+
+    private static bool IsUncPath(string path)
+    {
+        return path.StartsWith(@"\\", StringComparison.Ordinal)
+            || path.StartsWith("//", StringComparison.Ordinal);
     }
 
     private static string MakeArchiveRelative(string projectDirectory, string sourcePath, string originalPath, bool flat, string? archiveBaseDirectory = null)
