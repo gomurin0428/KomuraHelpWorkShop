@@ -13,27 +13,40 @@
   </header>
 
   <section>
-    <h2>このヘルプについて</h2>
-    <p>この CHM は、Komura HTML Help Compiler 自身で生成されています。HHP プロジェクトを読み込み、HTML、TOC、Index、CSS などを非圧縮 CHM コンテナへ格納します。</p>
-  </section>
-
-  <section>
-    <h2>まず試す</h2>
-    <ol>
-      <li><a href="topics/build.html">ビルドする</a></li>
-      <li><a href="topics/usage.html">サンプル HHP をコンパイルする</a></li>
-      <li><a href="topics/troubleshooting.html">表示に問題がある場合の確認をする</a></li>
-    </ol>
+    <h2>このヘルプで分かること</h2>
+    <p>この CHM は Komura HTML Help Compiler 自身で生成されています。HHP プロジェクトの作り方、コマンドラインの使い方、ファイル収集の規則、日本語の文字コード、生成物の確認方法をまとめています。</p>
+    <p>最初に試す場合は <a href="topics/quickstart.html">クイックスタート</a> から進めてください。既存の HHP を移植する場合は <a href="topics/project-format.html">HHP プロジェクト形式</a> と <a href="topics/file-collection.html">ファイル収集とパス</a> が入口になります。</p>
   </section>
 
   <section>
     <h2>主な機能</h2>
-    <ul>
-      <li><code>.hhp</code> の <code>[OPTIONS]</code> と <code>[FILES]</code> を読み取ります。</li>
-      <li><code>.hhc</code> / <code>.hhk</code> / HTML / CSS からリンク先ファイルを収集します。</li>
-      <li><code>#SYSTEM</code>、<code>#WINDOWS</code>、<code>#STRINGS</code> を生成し、HTML Help Viewer の基本表示を構成します。</li>
-      <li>ファイル数が多いプロジェクト向けに PMGI / PMGL ディレクトリを生成します。</li>
-    </ul>
+    <table>
+      <thead>
+        <tr><th>領域</th><th>内容</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>プロジェクト</td><td><code>.hhp</code> の <code>[OPTIONS]</code>、<code>[FILES]</code>、<code>Contents file</code>、<code>Index file</code>、<code>Default topic</code> を読み取ります。</td></tr>
+        <tr><td>リンク収集</td><td>HTML の <code>href</code> / <code>src</code>、CSS の <code>u&#114;l(...)</code>、HHC/HHK の <code>Local</code> から参照ファイルを追加します。</td></tr>
+        <tr><td>ビューア設定</td><td><code>#SYSTEM</code>、<code>#WINDOWS</code>、<code>#STRINGS</code> を生成し、HTML Help Viewer のタイトル、既定トピック、目次、索引を設定します。</td></tr>
+        <tr><td>日本語</td><td><code>Language</code> の LCID に合わせて HHC/HHK と内部文字列を ANSI コードページへ変換します。日本語は通常 <code>0x0411 Japanese</code> です。</td></tr>
+        <tr><td>CHM コンテナ</td><td>ITSF v3 / ITSP / PMGL / PMGI の非圧縮 CHM を生成します。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>読み進める順番</h2>
+    <ol>
+      <li><a href="topics/quickstart.html">クイックスタート</a> で最小のプロジェクトを作る。</li>
+      <li><a href="topics/build.html">ビルド</a> で実行ファイルを用意する。</li>
+      <li><a href="topics/usage.html">使い方</a> でオプションと終了コードを確認する。</li>
+      <li><a href="topics/validation.html">検証と配布</a> で生成した CHM を確認する。</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>この版の位置づけ</h2>
+    <p>このコンパイラは、まず Windows の HTML Help Viewer で開ける CHM を安定して生成することを優先しています。LZX 圧縮、全文検索インデックス、Binary TOC / Binary Index はまだ実装していません。詳しくは <a href="topics/compatibility.html">互換性と制限</a> を参照してください。</p>
   </section>
 </body>
 </html>

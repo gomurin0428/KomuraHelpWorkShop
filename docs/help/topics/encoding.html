@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>日本語と文字コード</title>
+  <link rel="stylesheet" href="../styles/help.css">
+</head>
+<body>
+  <header class="page-header">
+    <p class="eyebrow">Encoding</p>
+    <h1>日本語と文字コード</h1>
+    <p class="lead">HTML 本文、HHP、HHC、HHK の文字コードの扱いです。</p>
+  </header>
+
+  <section>
+    <h2>推奨設定</h2>
+    <p>日本語のヘルプでは HHP に次を指定してください。</p>
+    <pre><code>Language=0x0411 Japanese</code></pre>
+    <p>この指定により、目次、索引、内部タイトルなど HTML Help Viewer が ANSI として読む情報を CP932 で格納します。</p>
+  </section>
+
+  <section>
+    <h2>読み込み時の判定</h2>
+    <p>HHP、HTML、CSS、HHC、HHK のテキストは次の順に判定します。</p>
+    <ol>
+      <li>UTF-8 BOM、UTF-16 LE、UTF-16 BE の BOM があればそれを使う。</li>
+      <li>BOM がなくても UTF-8 として正しく読める場合は UTF-8 として読む。</li>
+      <li>UTF-8 として読めない場合は、現在の Windows ANSI コードページとして読む。</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>CHM への格納</h2>
+    <table>
+      <thead>
+        <tr><th>種類</th><th>格納時の扱い</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>HTML / CSS / 画像</td><td>元ファイルのバイト列をそのまま格納します。HTML には <code>&lt;meta charset="utf-8"&gt;</code> などを明示してください。</td></tr>
+        <tr><td>HHC / HHK</td><td>読み込んだテキストを <code>Language</code> の ANSI コードページへ変換して格納します。</td></tr>
+        <tr><td>内部文字列</td><td>タイトル、既定トピック、目次ファイル名、索引ファイル名などを同じ ANSI コードページで書き込みます。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>文字化けを避けるコツ</h2>
+    <ul>
+      <li>ソースファイルは UTF-8 で統一する。</li>
+      <li>HTML 本文には <code>&lt;meta charset="utf-8"&gt;</code> を入れる。</li>
+      <li>日本語の HHP には <code>Language=0x0411 Japanese</code> を入れる。</li>
+      <li>目次と索引の表示名は HHC/HHK の <code>Name</code> に書く。</li>
+      <li>生成後に文字化けする場合は、CHM を閉じてから再コンパイルする。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>代表的な LCID</h2>
+    <table>
+      <thead>
+        <tr><th>言語</th><th>指定例</th><th>主な ANSI コードページ</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>日本語</td><td><code>0x0411 Japanese</code></td><td>CP932</td></tr>
+        <tr><td>英語</td><td><code>0x0409 English (United States)</code></td><td>Windows-1252</td></tr>
+        <tr><td>韓国語</td><td><code>0x0412 Korean</code></td><td>CP949</td></tr>
+        <tr><td>簡体字中国語</td><td><code>0x0804 Chinese (Simplified)</code></td><td>CP936</td></tr>
+        <tr><td>繁体字中国語</td><td><code>0x0404 Chinese (Traditional)</code></td><td>CP950</td></tr>
+      </tbody>
+    </table>
+  </section>
+</body>
+</html>

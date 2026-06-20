@@ -15,27 +15,46 @@
   <section>
     <h2>本文だけの画面になる</h2>
     <p><code>#WINDOWS</code>、<code>#STRINGS</code>、<code>Contents file</code> の情報が不足すると、HTML Help Viewer はナビゲーションペインなしで開くことがあります。</p>
+    <ul>
+      <li><code>Contents file=toc.hhc</code> が HHP にあるか確認します。</li>
+      <li><code>toc.hhc</code> が実際に存在するか確認します。</li>
+      <li>古い生成物を見ている可能性があるため、CHM を閉じてから再コンパイルします。</li>
+    </ul>
     <p>バージョン <code>0.1.1</code> 以降では既定ウィンドウと簡易 TOC の生成を追加しています。古い生成物は再コンパイルしてください。</p>
+  </section>
+
+  <section>
+    <h2>目次や索引が文字化けする</h2>
+    <p>日本語の HHC/HHK は HTML Help Viewer 側で ANSI コードページとして解釈されることがあります。HHP に次を指定してください。</p>
+    <pre><code>Language=0x0411 Japanese</code></pre>
+    <p>バージョン <code>0.1.2</code> 以降では、この LCID に基づいて HHC/HHK と内部文字列を CP932 に変換して格納します。詳しくは <a href="encoding.html">日本語と文字コード</a> を参照してください。</p>
   </section>
 
   <section>
     <h2>ファイルが表示されない</h2>
     <ul>
       <li><code>[FILES]</code> に含まれるパスが HHP からの相対パスになっているか確認します。</li>
-      <li>リンク収集を無効化していないか確認します。</li>
+      <li>HTML や CSS から参照しているファイルが、実際にディスク上に存在するか確認します。</li>
+      <li><code>--no-link-scan</code> を付けている場合は、リンク先ファイルも <code>[FILES]</code> に明示します。</li>
       <li><code>--verbose</code> を付けて、収集されたファイル一覧を確認します。</li>
     </ul>
   </section>
 
   <section>
+    <h2>CSS や画像が反映されない</h2>
+    <p>HTML 内の相対リンクは、その HTML ファイルがあるフォルダーを基準に解決されます。たとえば <code>topics/usage.html</code> から <code>../styles/help.css</code> を参照している場合、実ファイルは HHP から見て <code>styles/help.css</code> にある必要があります。</p>
+    <p>リンクの詳しい規則は <a href="file-collection.html">ファイル収集とパス</a> を参照してください。</p>
+  </section>
+
+  <section>
     <h2>Windows でブロックされる</h2>
-    <p>インターネットから取得した CHM は Windows によってブロックされることがあります。ファイルのプロパティからブロック解除してから開いてください。</p>
+    <p>インターネットやメールから取得した CHM は Windows によってブロックされることがあります。ファイルのプロパティからブロック解除してから開いてください。</p>
   </section>
 
   <section>
     <h2>中身を確認する</h2>
     <pre><code>hh.exe -decompile out-dir file.chm</code></pre>
-    <p>展開できれば、CHM コンテナとしては HTML Help Viewer に認識されています。</p>
+    <p>展開できれば、CHM コンテナとしては HTML Help Viewer に認識されています。展開後に <code>toc.hhc</code>、<code>index.hhk</code>、HTML、CSS、画像が入っているか確認します。</p>
   </section>
 </body>
 </html>

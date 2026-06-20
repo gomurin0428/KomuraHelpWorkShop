@@ -15,11 +15,23 @@
   <section>
     <h2>基本形</h2>
     <pre><code>hhc &lt;project.hhp&gt; [--out &lt;file.chm&gt;] [options]</code></pre>
+    <p>一度にコンパイルできる HHP は 1 つです。HHP の相対パスは、HHP ファイルがあるディレクトリを基準に解決されます。</p>
   </section>
 
   <section>
-    <h2>サンプルをコンパイルする</h2>
-    <pre><code>.\src\hhc\bin\Debug\net8.0\hhc.exe .\examples\basic\help.hhp</code></pre>
+    <h2>よく使うコマンド</h2>
+    <table>
+      <thead>
+        <tr><th>目的</th><th>コマンド</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>通常の生成</td><td><code>hhc help.hhp</code></td></tr>
+        <tr><td>出力先を指定</td><td><code>hhc help.hhp --out dist\help.chm</code></td></tr>
+        <tr><td>収集されたファイルを確認</td><td><code>hhc help.hhp --verbose</code></td></tr>
+        <tr><td>明示ファイルだけを格納</td><td><code>hhc help.hhp --no-link-scan</code></td></tr>
+        <tr><td>欠落ファイルを警告にする</td><td><code>hhc help.hhp --allow-missing</code></td></tr>
+      </tbody>
+    </table>
   </section>
 
   <section>
@@ -29,13 +41,34 @@
         <tr><th>オプション</th><th>説明</th></tr>
       </thead>
       <tbody>
-        <tr><td><code>-o</code>, <code>--out &lt;path&gt;</code></td><td><code>[OPTIONS]</code> の <code>Compiled file</code> を上書きします。</td></tr>
-        <tr><td><code>--no-link-scan</code></td><td>明示されたファイルだけを格納します。</td></tr>
-        <tr><td><code>--allow-missing</code></td><td>入力ファイル欠落を警告にして CHM を生成します。</td></tr>
-        <tr><td><code>-v</code>, <code>--verbose</code></td><td>収集したファイルを表示します。</td></tr>
+        <tr><td><code>-o</code>, <code>--out &lt;path&gt;</code></td><td><code>[OPTIONS]</code> の <code>Compiled file</code> を上書きします。相対パスは HHP のディレクトリを基準に解決します。</td></tr>
+        <tr><td><code>--no-link-scan</code></td><td><code>[FILES]</code>、<code>Contents file</code>、<code>Index file</code>、<code>Default topic</code> で明示されたファイルだけを格納します。</td></tr>
+        <tr><td><code>--allow-missing</code></td><td>入力ファイル欠落を警告にして CHM を生成します。配布前の最終生成では外すことを推奨します。</td></tr>
+        <tr><td><code>-v</code>, <code>--verbose</code></td><td>追加したアーカイブパスと元ファイルの対応を標準エラーへ表示します。</td></tr>
         <tr><td><code>--version</code></td><td>バージョン情報を表示します。</td></tr>
+        <tr><td><code>-h</code>, <code>--help</code>, <code>/?</code></td><td>コマンドラインヘルプを表示します。</td></tr>
       </tbody>
     </table>
+  </section>
+
+  <section>
+    <h2>終了コード</h2>
+    <table>
+      <thead>
+        <tr><th>コード</th><th>意味</th><th>主な原因</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>0</td><td>成功</td><td>CHM が生成されました。</td></tr>
+        <tr><td>1</td><td>コンパイル失敗</td><td>HHP が見つからない、必須ファイルが欠落している、出力先へ書き込めない。</td></tr>
+        <tr><td>2</td><td>コマンドライン引数の誤り</td><td>未知のオプション、HHP 未指定、HHP を複数指定した。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>サンプルをコンパイルする</h2>
+    <pre><code>.\src\hhc\bin\Debug\net8.0\hhc.exe .\examples\basic\help.hhp --verbose</code></pre>
+    <p>生成した CHM の確認手順は <a href="validation.html">検証と配布</a> を参照してください。</p>
   </section>
 </body>
 </html>

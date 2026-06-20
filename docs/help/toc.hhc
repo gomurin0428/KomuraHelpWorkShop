@@ -1,7 +1,6 @@
 <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <html>
 <head>
-  <meta charset="utf-8">
   <meta name="GENERATOR" content="KomuraHhc">
 </head>
 <body>
@@ -14,25 +13,59 @@
     <param name="Local" value="index.html">
   </object></li>
   <li><object type="text/sitemap">
-    <param name="Name" value="ビルド">
-    <param name="Local" value="topics/build.html">
-  </object></li>
+    <param name="Name" value="はじめる">
+    <param name="Local" value="topics/quickstart.html">
+  </object>
+  <ul>
+    <li><object type="text/sitemap">
+      <param name="Name" value="クイックスタート">
+      <param name="Local" value="topics/quickstart.html">
+    </object></li>
+    <li><object type="text/sitemap">
+      <param name="Name" value="ビルド">
+      <param name="Local" value="topics/build.html">
+    </object></li>
+    <li><object type="text/sitemap">
+      <param name="Name" value="使い方">
+      <param name="Local" value="topics/usage.html">
+    </object></li>
+  </ul></li>
   <li><object type="text/sitemap">
-    <param name="Name" value="使い方">
-    <param name="Local" value="topics/usage.html">
-  </object></li>
-  <li><object type="text/sitemap">
-    <param name="Name" value="HHP プロジェクト形式">
+    <param name="Name" value="プロジェクトを作る">
     <param name="Local" value="topics/project-format.html">
-  </object></li>
+  </object>
+  <ul>
+    <li><object type="text/sitemap">
+      <param name="Name" value="HHP プロジェクト形式">
+      <param name="Local" value="topics/project-format.html">
+    </object></li>
+    <li><object type="text/sitemap">
+      <param name="Name" value="ファイル収集とパス">
+      <param name="Local" value="topics/file-collection.html">
+    </object></li>
+    <li><object type="text/sitemap">
+      <param name="Name" value="日本語と文字コード">
+      <param name="Local" value="topics/encoding.html">
+    </object></li>
+  </ul></li>
   <li><object type="text/sitemap">
-    <param name="Name" value="互換性と制限">
-    <param name="Local" value="topics/compatibility.html">
-  </object></li>
-  <li><object type="text/sitemap">
-    <param name="Name" value="トラブルシュート">
-    <param name="Local" value="topics/troubleshooting.html">
-  </object></li>
+    <param name="Name" value="確認と運用">
+    <param name="Local" value="topics/validation.html">
+  </object>
+  <ul>
+    <li><object type="text/sitemap">
+      <param name="Name" value="検証と配布">
+      <param name="Local" value="topics/validation.html">
+    </object></li>
+    <li><object type="text/sitemap">
+      <param name="Name" value="互換性と制限">
+      <param name="Local" value="topics/compatibility.html">
+    </object></li>
+    <li><object type="text/sitemap">
+      <param name="Name" value="トラブルシュート">
+      <param name="Local" value="topics/troubleshooting.html">
+    </object></li>
+  </ul></li>
 </ul>
 </body>
 </html>

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>検証と配布</title>
+  <link rel="stylesheet" href="../styles/help.css">
+</head>
+<body>
+  <header class="page-header">
+    <p class="eyebrow">Validation</p>
+    <h1>検証と配布</h1>
+    <p class="lead">生成した CHM を配布前に確認するための手順です。</p>
+  </header>
+
+  <section>
+    <h2>基本チェック</h2>
+    <ol>
+      <li><code>--verbose</code> を付けてコンパイルし、必要な HTML、CSS、画像、HHC、HHK が追加されているか見る。</li>
+      <li>CHM を開き、タイトル、目次、索引、既定トピックを確認する。</li>
+      <li>主要なページをクリックし、リンク切れや画像抜けがないか確認する。</li>
+      <li>日本語の目次と索引が文字化けしていないか確認する。</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>decompile で中身を見る</h2>
+    <p>Windows の <code>hh.exe</code> は CHM の展開にも使えます。</p>
+    <pre><code>hh.exe -decompile artifacts\decompiled docs\help\KomuraHhc.chm</code></pre>
+    <p>展開先に HTML、CSS、<code>toc.hhc</code>、<code>index.hhk</code> が出てくれば、CHM コンテナとして読み取れています。</p>
+  </section>
+
+  <section>
+    <h2>警告の扱い</h2>
+    <table>
+      <thead>
+        <tr><th>警告</th><th>確認すること</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>file not found</code></td><td>HHP からの相対パス、またはリンク元ファイルからの相対パスが正しいか確認します。</td></tr>
+        <tr><td><code>No Contents file was specified</code></td><td>簡易 TOC が生成されています。手作りの目次が必要な場合は <code>Contents file</code> を指定します。</td></tr>
+        <tr><td><code>Full-text search index generation is not implemented</code></td><td>検索タブ用の全文検索インデックスは生成されません。</td></tr>
+        <tr><td><code>Binary TOC</code> / <code>Binary Index</code></td><td>バイナリ化せず、HHC/HHK のソースを格納します。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>配布時の注意</h2>
+    <ul>
+      <li>Web からダウンロードした CHM は Windows にブロックされることがあります。</li>
+      <li>配布前の最終生成では <code>--allow-missing</code> を使わず、欠落ファイルを失敗として扱うことを推奨します。</li>
+      <li>CHM を開いたまま再生成すると、ビューア側が古い内容を保持しているように見えることがあります。確認時は一度閉じて開き直してください。</li>
+    </ul>
+  </section>
+</body>
+</html>

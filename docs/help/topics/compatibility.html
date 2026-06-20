@@ -14,23 +14,40 @@
 
   <section>
     <h2>対応済み</h2>
-    <ul>
-      <li>ITSF v3 / ITSP / PMGL / PMGI ディレクトリ生成</li>
-      <li>非圧縮 CHM コンテナ生成</li>
-      <li><code>#SYSTEM</code>、<code>#WINDOWS</code>、<code>#STRINGS</code>、<code>#ITBITS</code>、<code>::DataSpace/NameList</code> 生成</li>
-      <li>TOC / Index ソースファイルの格納</li>
-      <li>多ファイルプロジェクト用の PMGI root 生成</li>
-    </ul>
+    <table>
+      <thead>
+        <tr><th>分類</th><th>対応内容</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>CHM 形式</td><td>ITSF v3 / ITSP / PMGL / PMGI ディレクトリを生成します。ファイル数が多い場合は PMGI root も生成します。</td></tr>
+        <tr><td>格納方式</td><td>非圧縮 CHM コンテナを生成します。LZX 圧縮は使いません。</td></tr>
+        <tr><td>内部ファイル</td><td><code>#SYSTEM</code>、<code>#WINDOWS</code>、<code>#STRINGS</code>、<code>#ITBITS</code>、<code>::DataSpace/NameList</code> を生成します。</td></tr>
+        <tr><td>ナビゲーション</td><td>TOC / Index のソースファイルを格納し、HTML Help Viewer の目次タブとキーワードタブで使えるようにします。</td></tr>
+        <tr><td>文字コード</td><td><code>Language</code> の LCID から ANSI コードページを選び、HHC/HHK と内部文字列を変換します。</td></tr>
+      </tbody>
+    </table>
   </section>
 
   <section>
-    <h2>未対応</h2>
-    <ul>
-      <li>LZX 圧縮</li>
-      <li>全文検索インデックス <code>$FIftiMain</code></li>
-      <li>Binary TOC / Binary Index</li>
-      <li>CHI / CHW / merged help collection generation</li>
-    </ul>
+    <h2>未対応または簡略化</h2>
+    <table>
+      <thead>
+        <tr><th>機能</th><th>現在の動作</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>LZX 圧縮</td><td>未対応です。生成物は大きくなりますが、構造確認や小中規模ヘルプの配布には使えます。</td></tr>
+        <tr><td>全文検索インデックス</td><td><code>$FIftiMain</code> は生成しません。<code>Full-text search=Yes</code> は警告になります。</td></tr>
+        <tr><td>Binary TOC / Binary Index</td><td>バイナリ化せず、元の <code>.hhc</code> / <code>.hhk</code> を格納します。指定がある場合は警告を出します。</td></tr>
+        <tr><td>Merge Files</td><td><code>[MERGE FILES]</code> は検出しますが、結合ヘルプコレクションは生成しません。</td></tr>
+        <tr><td>CHI / CHW</td><td>外部インデックスやコレクション用ファイルは生成しません。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Microsoft hhc.exe との違い</h2>
+    <p>この実装は、HTML Help Workshop の完全な再実装ではなく、CHM を開くために必要な中核部分を先に実装しています。そのため、検索品質、圧縮率、古いプロジェクトの細かな互換設定まで一致させる目的にはまだ向きません。</p>
+    <p>一方で、ビルド環境に HTML Help Workshop をインストールできない場合や、HHP から CHM を自動生成したい場合の代替コンパイラとして使えます。</p>
   </section>
 </body>
 </html>
