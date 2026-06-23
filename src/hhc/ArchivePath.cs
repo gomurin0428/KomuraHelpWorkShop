@@ -4,47 +4,35 @@ namespace Komura.Hhc;
 
 internal static class ArchivePath
 {
-    private static readonly string[] ExternalSchemes =
-    {
-        "http:", "https:", "ftp:", "mailto:", "javascript:", "data:", "about:", "news:", "tel:", "file:"
-    };
-
     public static string? CleanLink(string raw)
     {
-        return Clean(raw, stripFragmentAndQuery: true, decodePercentEscapes: true);
+        return Clean(raw, stripFragmentAndQuery: true, decodeHtmlEntities: true, decodePercentEscapes: true, rejectExternalReferences: true);
     }
 
     public static string? CleanProjectPath(string raw)
     {
-        return Clean(raw, stripFragmentAndQuery: false, decodePercentEscapes: false);
+        return Clean(raw, stripFragmentAndQuery: false, decodeHtmlEntities: false, decodePercentEscapes: false, rejectExternalReferences: false);
     }
 
-    private static string? Clean(string raw, bool stripFragmentAndQuery, bool decodePercentEscapes)
+    private static string? Clean(
+        string raw,
+        bool stripFragmentAndQuery,
+        bool decodeHtmlEntities,
+        bool decodePercentEscapes,
+        bool rejectExternalReferences)
     {
-        var value = WebUtility.HtmlDecode(raw).Trim();
-        if (value.Length == 0 || value.StartsWith('#'))
+        var value = (decodeHtmlEntities ? WebUtility.HtmlDecode(raw) : raw).Trim();
+        if (value.Length == 0)
         {
             return null;
         }
 
-        if (stripFragmentAndQuery
-            && (value.StartsWith("//", StringComparison.Ordinal)
-                || value.StartsWith(@"\\", StringComparison.Ordinal)))
+        if (stripFragmentAndQuery && value.StartsWith('#'))
         {
             return null;
         }
 
-        foreach (var scheme in ExternalSchemes)
-        {
-            if (value.StartsWith(scheme, StringComparison.OrdinalIgnoreCase))
-            {
-                return null;
-            }
-        }
-
-        if (value.StartsWith("mk:@MSITStore:", StringComparison.OrdinalIgnoreCase)
-            || value.StartsWith("ms-its:", StringComparison.OrdinalIgnoreCase)
-            || value.StartsWith("its:", StringComparison.OrdinalIgnoreCase))
+        if (rejectExternalReferences && IsExternalReference(value))
         {
             return null;
         }
@@ -76,9 +64,46 @@ internal static class ArchivePath
             }
         }
 
+        if (value.Contains('\0'))
+        {
+            return null;
+        }
+
         return value
             .Replace('\\', Path.DirectorySeparatorChar)
             .Replace('/', Path.DirectorySeparatorChar);
+    }
+
+    private static bool IsExternalReference(string value)
+    {
+        return value.StartsWith("//", StringComparison.Ordinal)
+            || value.StartsWith(@"\\", StringComparison.Ordinal)
+            || value.StartsWith("mk:@MSITStore:", StringComparison.OrdinalIgnoreCase)
+            || value.StartsWith("ms-its:", StringComparison.OrdinalIgnoreCase)
+            || value.StartsWith("its:", StringComparison.OrdinalIgnoreCase)
+            || HasAbsoluteUriScheme(value);
+    }
+
+    private static bool HasAbsoluteUriScheme(string value)
+    {
+        var colon = value.IndexOf(':');
+        if (colon <= 0)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < colon; i++)
+        {
+            var ch = value[i];
+            if (i == 0 ? !char.IsLetter(ch) : !(char.IsLetterOrDigit(ch) || ch == '+' || ch == '-' || ch == '.'))
+            {
+                return false;
+            }
+        }
+
+        return !(colon == 1
+            && colon + 1 < value.Length
+            && (value[colon + 1] == '\\' || value[colon + 1] == '/'));
     }
 
     public static string NormalizeForArchive(string path, bool flat)

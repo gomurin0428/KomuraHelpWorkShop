@@ -6,7 +6,8 @@ Abstract compiler pipeline for Komura HHC.
 
 This model deliberately avoids CHM bytes and filesystem details. It checks the
 public state contract across CLI parsing, HHP loading, file collection,
-metadata construction, CHM writing, and terminal failures.
+output/input collision validation, metadata construction, CHM writing, and
+terminal failures.
 *)
 
 VARIABLES
@@ -15,6 +16,7 @@ VARIABLES
   projectExists,
   allowMissing,
   requiredMissing,
+  outputCollision,
   writeOutcome,
   filesCollected,
   metadataBuilt,
@@ -29,6 +31,7 @@ vars == <<
   projectExists,
   allowMissing,
   requiredMissing,
+  outputCollision,
   writeOutcome,
   filesCollected,
   metadataBuilt,
@@ -38,12 +41,12 @@ vars == <<
   chmCreated
 >>
 
-ConfigVars == <<request, projectExists, allowMissing, requiredMissing, writeOutcome>>
+ConfigVars == <<request, projectExists, allowMissing, requiredMissing, outputCollision, writeOutcome>>
 
 Phases == {"Start", "CliParsed", "ProjectLoaded", "FilesCollected", "MetadataBuilt", "Done"}
 Requests == {"Help", "Version", "ArgError", "Compile"}
-WriteOutcomes == {"Ok", "OutputUnwritable", "DirectoryEntryTooLarge", "DirectoryTooLarge"}
-WarningTags == {"file not found", "Missing required files", "write failed"}
+WriteOutcomes == {"Ok", "OutputUnwritable", "DirectoryEntryTooLarge", "DirectoryTooLarge", "ReservedInternalStreamCollision"}
+WarningTags == {"file not found", "Missing required files", "output collision", "write failed"}
 
 Init ==
   /\ phase = "Start"
@@ -51,6 +54,7 @@ Init ==
   /\ projectExists \in BOOLEAN
   /\ allowMissing \in BOOLEAN
   /\ requiredMissing \in BOOLEAN
+  /\ outputCollision \in BOOLEAN
   /\ writeOutcome \in WriteOutcomes
   /\ filesCollected = FALSE
   /\ metadataBuilt = FALSE
@@ -106,8 +110,18 @@ CollectRequiredMissingFails ==
   /\ chmCreated' = FALSE
   /\ UNCHANGED <<ConfigVars, filesCollected, metadataBuilt, writerRan>>
 
+OutputCollisionFails ==
+  /\ phase = "FilesCollected"
+  /\ outputCollision
+  /\ phase' = "Done"
+  /\ warnings' = warnings \cup {"output collision"}
+  /\ exitCode' = 1
+  /\ chmCreated' = FALSE
+  /\ UNCHANGED <<ConfigVars, filesCollected, metadataBuilt, writerRan>>
+
 BuildMetadata ==
   /\ phase = "FilesCollected"
+  /\ ~outputCollision
   /\ phase' = "MetadataBuilt"
   /\ metadataBuilt' = TRUE
   /\ UNCHANGED <<ConfigVars, filesCollected, writerRan, warnings, exitCode, chmCreated>>
@@ -142,6 +156,7 @@ Next ==
   \/ ProjectMissing
   \/ CollectFiles
   \/ CollectRequiredMissingFails
+  \/ OutputCollisionFails
   \/ BuildMetadata
   \/ WriteChm
   \/ WriteFails
@@ -155,6 +170,7 @@ TypeOK ==
   /\ projectExists \in BOOLEAN
   /\ allowMissing \in BOOLEAN
   /\ requiredMissing \in BOOLEAN
+  /\ outputCollision \in BOOLEAN
   /\ writeOutcome \in WriteOutcomes
   /\ filesCollected \in BOOLEAN
   /\ metadataBuilt \in BOOLEAN
@@ -168,10 +184,19 @@ RequiredMissingBlocksChm ==
     /\ exitCode = 1
     /\ chmCreated = FALSE
 
+OutputCollisionBlocksMetadataAndWrite ==
+  phase = "Done" /\ request = "Compile" /\ projectExists /\ outputCollision /\ ~(requiredMissing /\ ~allowMissing) =>
+    /\ filesCollected
+    /\ ~metadataBuilt
+    /\ ~writerRan
+    /\ exitCode = 1
+    /\ chmCreated = FALSE
+
 SuccessfulCompileContract ==
   chmCreated =>
     /\ request = "Compile"
     /\ projectExists
+    /\ ~outputCollision
     /\ filesCollected
     /\ metadataBuilt
     /\ writerRan

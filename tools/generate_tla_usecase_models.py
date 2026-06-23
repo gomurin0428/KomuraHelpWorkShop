@@ -33,6 +33,12 @@ ALL_ARCHIVE_PATHS = {
     "logo.png",
     "bg.png",
     "topic-&-one.html",
+    "topics/chapter.html",
+    "docs/a&amp;b.html",
+    "C#Guide.html",
+    "literal%23.html",
+    "topic.html",
+    "#SYSTEM",
 }
 
 ALL_COLLECTION_TAGS = {
@@ -81,6 +87,16 @@ ALL_COLLECTION_TAGS = {
     "LanguageParsed",
     "TruthyOption",
     "GeneratedContentsEscaped",
+    "BaseFragment",
+    "GeneratedContentsLocalUrlEscaped",
+    "ProjectEntityLiteral",
+    "ExternalBasePreserved",
+    "AllAbsoluteSchemesExternal",
+    "DecodedNulRejected",
+    "ReservedInternalStreamCollision",
+    "OutputPathCollision",
+    "CaseOnlySourceCollision",
+    "ReservedEscapePreserved",
     "NoDefaultTopic",
     "UnsupportedWarning",
     "SourceTocEmbedded",
@@ -123,6 +139,7 @@ ALL_METADATA_TAGS = {
     "FullTextSearch:false",
     "ContentsGenerated:true",
     "GeneratedContentsEscaped:true",
+    "GeneratedContentsLocalUrlEscaped:true",
     "OutputDirectoryCreated:true",
     "Hhp:CommentsIgnored",
     "Hhp:CaseInsensitive",
@@ -160,6 +177,7 @@ ALL_WRITER_TAGS = {
     "StringTableDeduplicated",
     "DirectoryEntryTooLarge",
     "DirectoryTooLarge",
+    "ReservedInternalStreamCollision",
 }
 
 ALL_STDOUT = {"Banner", "Usage", "Options", "Version", "Compiled", "Files"}
@@ -177,6 +195,8 @@ ALL_STDERR = {
     "#SYSTEM entry is too large",
     "input file read error",
     "output file locked",
+    "internal stream collision",
+    "output overwrite",
     "add log",
 }
 
@@ -430,6 +450,16 @@ CASES: list[UseCase] = [
     UseCase(85, "Error_LockedOutputPreserved", "locked existing output fails without overwriting it", collection_tags=tags("ExplicitFiles"), archive=tags("index.html"), metadata=tags("Output:project/help.chm", "Title:Project Title", "ExistingOutput:Preserved"), writer_tags=tags("WriteFailed", "OutputCreateLocked", "ExistingOutputPreserved"), stdout=frozenset(), stderr=tags("output file locked", "error"), warnings=frozenset(), exit_code=1, chm_created=False, impl=("CliOptions.Parse", "HhpProject.Load", "ProjectCompiler.CollectFiles", "ProjectCompiler.BuildMetadata", "ChmWriter.Write", "Program.Main"), specific=('"OutputCreateLocked" \\in writerTags', '"ExistingOutputPreserved" \\in writerTags', '"ExistingOutput:Preserved" \\in metadata', "chmCreated = FALSE")),
     UseCase(86, "Error_MetadataEntryTooLarge", "oversized metadata entry fails before CHM creation", collection_tags=tags("ExplicitFiles"), archive=tags("index.html"), metadata=tags("Output:project/help.chm", "Title:Oversized"), writer_tags=tags("WriteFailed", "MetadataEntryTooLarge"), stdout=frozenset(), stderr=tags("#SYSTEM entry is too large", "error"), warnings=frozenset(), exit_code=1, chm_created=False, impl=("CliOptions.Parse", "HhpProject.Load", "ProjectCompiler.CollectFiles", "ProjectCompiler.BuildMetadata", "ChmWriter.Write", "Program.Main"), specific=('"MetadataEntryTooLarge" \\in writerTags', '"#SYSTEM entry is too large" \\in stderr', "chmCreated = FALSE")),
     UseCase(87, "Files_GeneratedContentsEscapesHtml", "generated contents escapes HTML-sensitive topic names", collection_tags=tags("GeneratedContents", "GeneratedContentsEscaped"), archive=tags("topic-&-one.html", "Table of Contents.hhc"), metadata=tags("Output:project/help.chm", "Contents:Table of Contents.hhc", "ContentsGenerated:true", "GeneratedContentsEscaped:true"), warnings=tags("generated toc"), impl=COMPILE_IMPL, specific=('"GeneratedContentsEscaped" \\in collectionTags', '"GeneratedContentsEscaped:true" \\in metadata', '"topic-&-one.html" \\in archive')),
+    UseCase(88, "Links_BaseHrefFragmentTarget", "fragment-only links resolve against local base href", collection_tags=tags("LinkScan", "RelativeBase", "BaseFragment"), archive=tags("index.html", "topics/chapter.html"), impl=LINK_IMPL, specific=('"BaseFragment" \\in collectionTags', '"topics/chapter.html" \\in archive')),
+    UseCase(89, "Files_GeneratedContentsEscapesLocalUrls", "generated contents escapes URL-reserved Local values", collection_tags=tags("GeneratedContents", "GeneratedContentsLocalUrlEscaped"), archive=tags("C#Guide.html", "literal%23.html", "Table of Contents.hhc"), metadata=tags("Output:project/help.chm", "Contents:Table of Contents.hhc", "ContentsGenerated:true", "GeneratedContentsLocalUrlEscaped:true"), warnings=tags("generated toc"), impl=COMPILE_IMPL, specific=('"GeneratedContentsLocalUrlEscaped" \\in collectionTags', '"GeneratedContentsLocalUrlEscaped:true" \\in metadata', '"C#Guide.html" \\in archive', '"literal%23.html" \\in archive')),
+    UseCase(90, "Paths_ProjectEntityLiteral", "project paths keep HTML entities literal", collection_tags=tags("ExplicitFiles", "ProjectEntityLiteral"), archive=tags("docs/a&amp;b.html"), impl=COMPILE_IMPL, specific=('"ProjectEntityLiteral" \\in collectionTags', '"docs/a&amp;b.html" \\in archive')),
+    UseCase(91, "Links_ExternalBaseFlatRewriteSkipped", "flat rewrite leaves references under external base href unchanged", collection_tags=tags("Flat", "FlatRewrite", "ExternalBasePreserved"), archive=tags("index.html"), impl=FLAT_IMPL, specific=('"ExternalBasePreserved" \\in collectionTags', 'archive = {"index.html"}')),
+    UseCase(92, "Links_AnyAbsoluteUriSchemeExternal", "all absolute URI schemes are treated as external links", collection_tags=tags("ExternalLinksIgnored", "AllAbsoluteSchemesExternal"), archive=tags("index.html"), impl=LINK_IMPL, specific=('"AllAbsoluteSchemesExternal" \\in collectionTags', 'archive = {"index.html"}', 'warnings = {}')),
+    UseCase(93, "Links_DecodedNulRejected", "decoded NUL links are rejected before path resolution", collection_tags=tags("LinkScan", "DecodedNulRejected"), archive=tags("index.html"), impl=LINK_IMPL, specific=('"DecodedNulRejected" \\in collectionTags', 'archive = {"index.html"}', 'warnings = {}')),
+    UseCase(94, "Chm_InternalStreamCollision", "user archive names cannot collide with CHM internal streams", collection_tags=tags("ExplicitFiles", "ReservedInternalStreamCollision"), archive=tags("#SYSTEM"), metadata=tags("Output:project/help.chm", "Title:Project Title"), writer_tags=tags("WriteFailed", "ReservedInternalStreamCollision"), stdout=frozenset(), stderr=tags("internal stream collision", "error"), warnings=frozenset(), exit_code=1, chm_created=False, impl=("CliOptions.Parse", "HhpProject.Load", "ProjectCompiler.CollectFiles", "ProjectCompiler.BuildMetadata", "ChmWriter.Write", "Program.Main"), specific=('"ReservedInternalStreamCollision" \\in collectionTags', '"ReservedInternalStreamCollision" \\in writerTags', '"internal stream collision" \\in stderr', 'chmCreated = FALSE')),
+    collect_exception(95, "Error_OutputOverwriteRejected", "output paths that overwrite project or input files are rejected", "OutputPathCollision", stderr=("output overwrite", "error")),
+    UseCase(96, "Files_CaseOnlySourceCollision", "case-only source archive collisions warn and keep the first payload", collection_tags=tags("DuplicateConflict", "CaseOnlySourceCollision"), archive=tags("topic.html"), warnings=tags("duplicate archive path"), impl=COMPILE_IMPL, specific=('"CaseOnlySourceCollision" \\in collectionTags', '"duplicate archive path" \\in warnings', '"topic.html" \\in archive')),
+    UseCase(97, "Links_FlatReservedEscapesPreserved", "flat rewrite preserves escapes for reserved filename characters", collection_tags=tags("Flat", "FlatRewrite", "ReservedEscapePreserved"), archive=tags("index.html", "C#Guide.html"), metadata=tags("Output:project/help.chm", "LinksRewrittenForFlat:true"), impl=FLAT_IMPL, specific=('"ReservedEscapePreserved" \\in collectionTags', '"C#Guide.html" \\in archive', '"LinksRewrittenForFlat:true" \\in metadata')),
 ]
 
 

@@ -139,3 +139,57 @@ Feature: Additional Komura HHC edge cases covered by TLA+
       Given generated contents include topic names with HTML-sensitive characters
       When the generated contents file is embedded
       Then the generated Local and Name values are escaped
+
+  Rule: PR review edge cases remain protected
+
+    Scenario: UC088 local base href resolves fragment-only links
+      Given an HTML file declares a local base href pointing at topics/chapter.html
+      And the file contains a fragment-only link to #intro
+      When links are scanned for inclusion
+      Then topics/chapter.html is collected as the linked topic
+
+    Scenario: UC089 generated TOC escapes reserved Local URLs
+      Given generated contents include topic archive names with # or literal percent escapes
+      When the compiler writes the generated contents file
+      Then generated Local values are URL-escaped so they still address the embedded topic filenames
+
+    Scenario: UC090 project path HTML entities remain literal
+      Given the HHP [FILES] section lists docs/a&amp;b.html
+      When the project file path is normalized
+      Then docs/a&amp;b.html is kept as a literal filesystem entry
+
+    Scenario: UC091 external base href prevents flat local rewrites
+      Given Flat mode is enabled
+      And a page declares an external base href
+      When the page is rewritten for flat archives
+      Then relative references under that external base are left unchanged
+
+    Scenario: UC092 arbitrary absolute URI schemes are external
+      Given a page links to cid:, urn:, irc:, or smb: targets
+      When links are scanned or flat-rewritten
+      Then those targets are treated as external links and are not collected or rewritten as local files
+
+    Scenario: UC093 decoded NUL links are rejected before path resolution
+      Given a page contains a percent-encoded NUL in a local-looking link
+      When links are scanned
+      Then the target is rejected before filesystem path resolution and compilation continues
+
+    Scenario: UC094 internal stream archive path collisions fail
+      Given a project lists a user file whose archive path matches a reserved CHM internal stream
+      When the writer prepares CHM directory entries
+      Then compilation fails instead of silently dropping the user payload
+
+    Scenario: UC095 output paths cannot overwrite project or input files
+      Given the configured CHM output path equals the project file or a collected input file
+      When compilation validates the output path
+      Then compilation fails before writing output bytes
+
+    Scenario: UC096 case-only source collisions warn
+      Given two source files differ only by case but normalize to the same CHM archive path
+      When files are collected on a case-sensitive filesystem
+      Then the compiler warns about the duplicate archive path and keeps the first payload
+
+    Scenario: UC097 flat rewrite preserves reserved filename escapes
+      Given Flat mode rewrites a local URL whose basename contains an encoded reserved character
+      When the archive path is flattened
+      Then the decoded basename selects the embedded file and the rewritten URL preserves the reserved-character escape

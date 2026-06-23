@@ -133,10 +133,17 @@ internal sealed class ChmWriter
         foreach (var input in inputFiles)
         {
             var name = ArchivePath.ForDirectory(input.ArchivePath);
-            if (!entries.ContainsKey(name))
+            if (entries.TryGetValue(name, out var existing))
             {
-                entries[name] = new ChmEntry(name, input.Data ?? File.ReadAllBytes(input.SourcePath), isUserFile: true);
+                if (!existing.IsUserFile)
+                {
+                    throw new CompilationException($"Archive path '{input.ArchivePath}' collides with internal CHM stream '{name}'.");
+                }
+
+                continue;
             }
+
+            entries[name] = new ChmEntry(name, input.Data ?? File.ReadAllBytes(input.SourcePath), isUserFile: true);
         }
 
         return entries.Values.OrderBy(e => e.Name, ChmPathComparer.Instance).ToList();

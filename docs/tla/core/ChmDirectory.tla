@@ -5,9 +5,9 @@ EXTENDS Naturals, FiniteSets
 Abstract CHM directory writer model for Komura HHC.
 
 This model treats CHM bytes as opaque entries. It checks the directory-level
-contract: internal streams are present, all user files are reachable on success,
-PMGI appears exactly when multiple PMGL blocks are needed, and size-limit
-failures do not create a CHM.
+contract: internal streams are present, reserved internal stream collisions are
+reported, all user files are reachable on success, PMGI appears exactly when
+multiple PMGL blocks are needed, and size-limit failures do not create a CHM.
 *)
 
 VARIABLES
@@ -35,17 +35,18 @@ vars == <<
   chmCreated
 >>
 
-Shapes == {"Small", "Large", "EntryTooLarge", "DirectoryTooLarge"}
+Shapes == {"Small", "Large", "ReservedCollision", "EntryTooLarge", "DirectoryTooLarge"}
 InternalStreams == {"::DataSpace/NameList", "/#SYSTEM", "/#WINDOWS", "/#STRINGS", "/#ITBITS"}
-UserAtoms == {"index.html", "toc.hhc", "index.hhk", "topic001.html", "topic002.html", "oversized-name.html"}
+UserAtoms == {"index.html", "toc.hhc", "index.hhk", "topic001.html", "topic002.html", "oversized-name.html", "/#SYSTEM"}
 AllEntries == InternalStreams \cup UserAtoms
-Errors == {"None", "DirectoryEntryTooLarge", "DirectoryTooLarge"}
+Errors == {"None", "ReservedInternalStreamCollision", "DirectoryEntryTooLarge", "DirectoryTooLarge"}
 MaxPmgiFanout == 4
 
 UserFilesFor(s) ==
   CASE
     s = "Small" -> {"index.html", "toc.hhc", "index.hhk"}
   [] s = "Large" -> {"index.html", "toc.hhc", "index.hhk", "topic001.html", "topic002.html"}
+  [] s = "ReservedCollision" -> {"/#SYSTEM"}
   [] s = "EntryTooLarge" -> {"oversized-name.html"}
   [] s = "DirectoryTooLarge" -> {"index.html", "toc.hhc", "index.hhk", "topic001.html", "topic002.html"}
 
@@ -53,6 +54,7 @@ PmglCountFor(s) ==
   CASE
     s = "Small" -> 1
   [] s = "Large" -> 2
+  [] s = "ReservedCollision" -> 0
   [] s = "EntryTooLarge" -> 0
   [] s = "DirectoryTooLarge" -> MaxPmgiFanout + 1
 
@@ -68,8 +70,17 @@ Init ==
   /\ error = "None"
   /\ chmCreated = FALSE
 
+ReservedCollision ==
+  /\ phase = "Start"
+  /\ shape = "ReservedCollision"
+  /\ phase' = "Done"
+  /\ error' = "ReservedInternalStreamCollision"
+  /\ chmCreated' = FALSE
+  /\ UNCHANGED <<shape, userFiles, entries, offsetsAssigned, pmglBlocks, pmgi, reachable>>
+
 BuildEntries ==
   /\ phase = "Start"
+  /\ shape # "ReservedCollision"
   /\ phase' = "EntriesBuilt"
   /\ entries' = InternalStreams \cup userFiles
   /\ UNCHANGED <<shape, userFiles, offsetsAssigned, pmglBlocks, pmgi, reachable, error, chmCreated>>
@@ -117,7 +128,8 @@ StayDone ==
   /\ UNCHANGED vars
 
 Next ==
-  BuildEntries
+  ReservedCollision
+  \/ BuildEntries
   \/ AssignOffsets
   \/ DirectoryEntryTooLarge
   \/ DirectoryTooLarge
@@ -145,6 +157,12 @@ SuccessHasInternalStreams ==
 SuccessHasAllUserFiles ==
   chmCreated => userFiles \subseteq reachable
 
+ReservedInternalStreamsCannotBeUserFiles ==
+  phase = "Done" /\ shape = "ReservedCollision" =>
+    /\ error = "ReservedInternalStreamCollision"
+    /\ chmCreated = FALSE
+    /\ reachable = {}
+
 PmgiIffMultiplePmgl ==
   phase = "Done" /\ chmCreated => (pmgi <=> pmglBlocks > 1)
 
@@ -162,7 +180,7 @@ DirectoryLimitEnforced ==
     /\ chmCreated = FALSE
 
 OffsetsBeforeDirectory ==
-  phase \in {"DirectoryBuilt", "Done"} /\ (pmglBlocks > 0 \/ error # "None" \/ chmCreated) =>
+  phase \in {"DirectoryBuilt", "Done"} /\ (pmglBlocks > 0 \/ error \in {"DirectoryEntryTooLarge", "DirectoryTooLarge"} \/ chmCreated) =>
     offsetsAssigned
 
 EventuallyDone == <> (phase = "Done")

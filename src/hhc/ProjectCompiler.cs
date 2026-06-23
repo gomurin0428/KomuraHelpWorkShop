@@ -30,6 +30,7 @@ internal sealed class ProjectCompiler
         WarnForUnsupportedOptions(project);
 
         var outputPath = ResolveOutputPath(project);
+        ValidateOutputDoesNotOverwriteInputs(outputPath, project.ProjectPath, files.InputFiles);
         var metadata = BuildMetadata(project, outputPath, lcid, helpTextEncoding, files.DefaultTopicArchivePath, files.GeneratedContentsFile);
         var writer = new ChmWriter();
         writer.Write(outputPath, files.InputFiles, metadata);
@@ -81,7 +82,7 @@ internal sealed class ProjectCompiler
 
             if (byArchivePath.TryGetValue(archiveRelative, out var existing))
             {
-                if (!Path.GetFullPath(existing.SourcePath).Equals(Path.GetFullPath(sourcePath), StringComparison.OrdinalIgnoreCase))
+                if (!Path.GetFullPath(existing.SourcePath).Equals(Path.GetFullPath(sourcePath), StringComparison.Ordinal))
                 {
                     _warnings.Add($"duplicate archive path '{archiveRelative}' from '{sourcePath}', keeping '{existing.SourcePath}'");
                 }
@@ -173,6 +174,36 @@ internal sealed class ProjectCompiler
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? project.ProjectDirectory);
         return outputPath;
     }
+
+    private static void ValidateOutputDoesNotOverwriteInputs(string outputPath, string projectPath, IReadOnlyList<InputFile> inputFiles)
+    {
+        if (SameFileSystemPath(outputPath, projectPath))
+        {
+            throw new CompilationException($"Output path would overwrite the project file: {projectPath}");
+        }
+
+        foreach (var input in inputFiles)
+        {
+            if (input.SourcePath.Length == 0)
+            {
+                continue;
+            }
+
+            if (SameFileSystemPath(outputPath, input.SourcePath))
+            {
+                throw new CompilationException($"Output path would overwrite an input file: {input.SourcePath}");
+            }
+        }
+    }
+
+    private static bool SameFileSystemPath(string left, string right)
+    {
+        return Path.GetFullPath(left).Equals(Path.GetFullPath(right), FileSystemPathComparison);
+    }
+
+    private static StringComparison FileSystemPathComparison =>
+        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+
 
     private static string? NormalizeFileSystemPath(string? path)
     {
@@ -391,7 +422,7 @@ internal sealed class ProjectCompiler
             var title = Path.GetFileNameWithoutExtension(topic.ArchivePath);
             lines.Add("  <li><object type=\"text/sitemap\">");
             lines.Add($"    <param name=\"Name\" value=\"{EscapeHtml(title)}\">");
-            lines.Add($"    <param name=\"Local\" value=\"{EscapeHtml(topic.ArchivePath)}\">");
+            lines.Add($"    <param name=\"Local\" value=\"{EscapeHtml(EscapeLocalUrl(topic.ArchivePath))}\">");
             lines.Add("  </object></li>");
         }
 
@@ -459,6 +490,12 @@ internal sealed class ProjectCompiler
     {
         var cleaned = ArchivePath.CleanProjectPath(path) ?? path;
         return IsHtmlFile(cleaned);
+    }
+
+    private static string EscapeLocalUrl(string archivePath)
+    {
+        var normalized = archivePath.Replace('\\', '/');
+        return string.Join('/', normalized.Split('/').Select(Uri.EscapeDataString));
     }
 
     private static string EscapeHtml(string value)

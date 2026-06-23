@@ -4,8 +4,9 @@ EXTENDS Integers
 (*
 Abstract ArchivePath and ProjectCompiler archive-name model.
 
-It checks cleaning, ignored targets, dot-segment normalization, flat archive
-names, and outside-project path handling.
+It checks cleaning, ignored targets, project-path literal preservation,
+dot-segment normalization, flat archive names, decoded-NUL rejection, and
+outside-project path handling.
 *)
 
 VARIABLES
@@ -22,12 +23,18 @@ Scenarios == {
   "Empty",
   "FragmentOnly",
   "ExternalHttp",
+  "ExternalCid",
+  "ExternalUrn",
+  "ExternalSmb",
   "ProtocolRelative",
   "UncShare",
   "ChmScheme",
   "QueryFragment",
   "HtmlAndPercentDecode",
   "MalformedPercentKept",
+  "DecodedNulRejected",
+  "ProjectEntityLiteral",
+  "ProjectPercentLiteral",
   "BackslashSeparators",
   "RootRelativeLink",
   "DotSegments",
@@ -43,6 +50,8 @@ Paths == {
   "topics/usage.html",
   "topics/a b.html",
   "bad%ZZ.html",
+  "docs/a&amp;b.html",
+  "assets/a%20b.html",
   "topics/intro.html",
   "images/logo.png",
   "usage.html",
@@ -51,12 +60,18 @@ Paths == {
   "asset.bin"
 }
 
+AbsoluteUriScenarios == {"ExternalHttp", "ExternalCid", "ExternalUrn", "ExternalSmb"}
+IgnoredScenarios == {"Empty", "FragmentOnly", "ExternalHttp", "ExternalCid", "ExternalUrn", "ExternalSmb", "ProtocolRelative", "UncShare", "ChmScheme", "DecodedNulRejected", "DotPath"}
+ProjectLiteralScenarios == {"ProjectEntityLiteral", "ProjectPercentLiteral"}
+
 ExpectedClean(s) ==
   CASE
-    s \in {"Empty", "FragmentOnly", "ExternalHttp", "ProtocolRelative", "UncShare", "ChmScheme", "DotPath"} -> "None"
+    s \in IgnoredScenarios -> "None"
   [] s = "QueryFragment" -> "topics/usage.html"
   [] s = "HtmlAndPercentDecode" -> "topics/a b.html"
   [] s = "MalformedPercentKept" -> "bad%ZZ.html"
+  [] s = "ProjectEntityLiteral" -> "docs/a&amp;b.html"
+  [] s = "ProjectPercentLiteral" -> "assets/a%20b.html"
   [] s = "BackslashSeparators" -> "topics/intro.html"
   [] s = "RootRelativeLink" -> "images/logo.png"
   [] s = "DotSegments" -> "index.html"
@@ -69,11 +84,10 @@ ExpectedArchive(s) ==
   CASE
     s = "FlatMode" -> "usage.html"
   [] s = "OutsideRelativeProjectFile" -> "page.html"
-  [] s \in {"Empty", "FragmentOnly", "ExternalHttp", "ProtocolRelative", "UncShare", "ChmScheme", "DotPath"} -> "None"
+  [] s \in IgnoredScenarios -> "None"
   [] OTHER -> ExpectedClean(s)
 
-ExpectedIgnored(s) ==
-  s \in {"Empty", "FragmentOnly", "ExternalHttp", "ProtocolRelative", "UncShare", "ChmScheme", "DotPath"}
+ExpectedIgnored(s) == s \in IgnoredScenarios
 
 Init ==
   /\ scenario \in Scenarios
@@ -113,6 +127,21 @@ IgnoredTargetsProduceNoArchivePath ==
     /\ cleanResult = "None"
     /\ archiveResult = "None"
     /\ ~warning
+
+AllAbsoluteUriSchemesAreExternal ==
+  phase = "Done" /\ scenario \in AbsoluteUriScenarios =>
+    /\ ignored
+    /\ archiveResult = "None"
+
+ProjectPathsRemainLiteral ==
+  phase = "Done" =>
+    /\ scenario = "ProjectEntityLiteral" => archiveResult = "docs/a&amp;b.html"
+    /\ scenario = "ProjectPercentLiteral" => archiveResult = "assets/a%20b.html"
+
+DecodedNulNeverReachesPathResolution ==
+  phase = "Done" /\ scenario = "DecodedNulRejected" =>
+    /\ ignored
+    /\ archiveResult = "None"
 
 LinkCleaningRemovesQueryAndFragment ==
   phase = "Done" /\ scenario = "QueryFragment" => archiveResult = "topics/usage.html"

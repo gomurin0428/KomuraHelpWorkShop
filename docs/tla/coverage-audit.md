@@ -4,7 +4,7 @@ This audit is generated from the TLC logs referenced by the current verification
 Coverage is expected to be present for every checked model. Zero-hit top-level actions are allowed for documented unreachable/stutter actions: `ExternalAbort` and `StayDone`.
 Use-case models also reuse a shared pipeline action skeleton; when a scenario exits early, later shared actions are recorded as intentionally zero-hit rather than as missing coverage.
 
-Referenced logs: 98
+Referenced logs: 108
 
 | Log | Coverage present | Zero-hit top-level actions | Zero-hit disposition | Unexpected zero/missing coverage |
 | -- | -- | -- | -- | -- |
@@ -106,5 +106,15 @@ Referenced logs: 98
 | `artifacts/tla-results/Use Case/UC085_Error_LockedOutputPreserved.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
 | `artifacts/tla-results/Use Case/UC086_Error_MetadataEntryTooLarge.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
 | `artifacts/tla-results/Use Case/UC087_Files_GeneratedContentsEscapesHtml.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
+| `artifacts/tla-results/Use Case/UC088_Links_BaseHrefFragmentTarget.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
+| `artifacts/tla-results/Use Case/UC089_Files_GeneratedContentsEscapesLocalUrls.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
+| `artifacts/tla-results/Use Case/UC090_Paths_ProjectEntityLiteral.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
+| `artifacts/tla-results/Use Case/UC091_Links_ExternalBaseFlatRewriteSkipped.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
+| `artifacts/tla-results/Use Case/UC092_Links_AnyAbsoluteUriSchemeExternal.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
+| `artifacts/tla-results/Use Case/UC093_Links_DecodedNulRejected.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
+| `artifacts/tla-results/Use Case/UC094_Chm_InternalStreamCollision.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
+| `artifacts/tla-results/Use Case/UC095_Error_OutputOverwriteRejected.log` | yes | `BuildMetadata`, `StayDone`, `WriteChm` | `BuildMetadata`: use-case model stops before this shared pipeline action; `StayDone`: documented unreachable/stutter action; `WriteChm`: use-case model stops before this shared pipeline action | - |
+| `artifacts/tla-results/Use Case/UC096_Files_CaseOnlySourceCollision.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
+| `artifacts/tla-results/Use Case/UC097_Links_FlatReservedEscapesPreserved.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
 
 Unexpected coverage issues: 0

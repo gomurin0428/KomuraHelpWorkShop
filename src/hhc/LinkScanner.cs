@@ -48,6 +48,12 @@ internal static partial class LinkScanner
 
     public static string RewriteLinksForFlatArchive(string text)
     {
+        var baseHref = ExtractBaseHref(text);
+        if (baseHref is not null && IsExternalBaseHref(baseHref))
+        {
+            return text;
+        }
+
         text = BaseTagRegex().Replace(text, RewriteBaseTagForFlatArchive);
         text = AttributeLinkRegex().Replace(text, RewriteMatchValue);
         text = ParamTagRegex().Replace(text, RewriteLocalParamTag);
@@ -128,26 +134,61 @@ internal static partial class LinkScanner
         return string.Empty;
     }
 
+    private static bool IsExternalBaseHref(string href)
+    {
+        var trimmed = href.Trim();
+        return trimmed.Length > 0
+            && !trimmed.StartsWith("#", StringComparison.Ordinal)
+            && ArchivePath.CleanLink(trimmed) is null;
+    }
+
     private static string ApplyBaseHref(string value, string? baseHref)
     {
-        if (string.IsNullOrWhiteSpace(baseHref) || !ShouldResolveAgainstBase(value))
+        if (string.IsNullOrWhiteSpace(baseHref))
         {
             return value;
         }
 
         var trimmedBase = baseHref.Trim();
-        if (ArchivePath.CleanLink(trimmedBase) is { } localBase)
+        var trimmedValue = value.Trim();
+        if (IsFragmentOnly(trimmedValue))
         {
-            var baseDirectory = DirectoryPartForBaseHref(localBase, trimmedBase);
+            if (ArchivePath.CleanLink(trimmedBase) is { } localBase)
+            {
+                return localBase.Replace('\\', '/') + trimmedValue;
+            }
+
+            if (Uri.TryCreate(trimmedBase, UriKind.Absolute, out var absoluteBase)
+                && Uri.TryCreate(absoluteBase, trimmedValue, out var resolved))
+            {
+                return resolved.ToString();
+            }
+
+            if (trimmedBase.StartsWith("//", StringComparison.Ordinal))
+            {
+                return trimmedBase + trimmedValue;
+            }
+
+            return value;
+        }
+
+        if (!ShouldResolveAgainstBase(value))
+        {
+            return value;
+        }
+
+        if (ArchivePath.CleanLink(trimmedBase) is { } localBaseForValue)
+        {
+            var baseDirectory = DirectoryPartForBaseHref(localBaseForValue, trimmedBase);
             return string.IsNullOrEmpty(baseDirectory)
                 ? value
                 : ArchivePath.Combine(baseDirectory, value);
         }
 
-        if (Uri.TryCreate(trimmedBase, UriKind.Absolute, out var absoluteBase)
-            && Uri.TryCreate(absoluteBase, value, out var resolved))
+        if (Uri.TryCreate(trimmedBase, UriKind.Absolute, out var absoluteBaseForValue)
+            && Uri.TryCreate(absoluteBaseForValue, value, out var resolvedValue))
         {
-            return resolved.ToString();
+            return resolvedValue.ToString();
         }
 
         if (trimmedBase.StartsWith("//", StringComparison.Ordinal))
@@ -156,6 +197,11 @@ internal static partial class LinkScanner
         }
 
         return value;
+    }
+
+    private static bool IsFragmentOnly(string value)
+    {
+        return value.Length > 0 && value.StartsWith("#", StringComparison.Ordinal);
     }
 
     private static bool ShouldResolveAgainstBase(string value)
