@@ -43,6 +43,11 @@ internal static class Program
         }
         catch (CompilationException ex)
         {
+            foreach (var warning in ex.Warnings)
+            {
+                Console.Error.WriteLine($"warning: {warning}");
+            }
+
             Console.Error.WriteLine($"error: {ex.Message}");
             return 1;
         }

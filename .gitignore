@@ -1,5 +1,9 @@
 bin/
 obj/
 artifacts/
+states/
+docs/tla/usecases/states/
+__pycache__/
+*.pyc*
 *.chm
 !docs/help/KomuraHhc.chm

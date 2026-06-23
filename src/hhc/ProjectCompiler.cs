@@ -23,7 +23,8 @@ internal sealed class ProjectCompiler
         {
             throw new CompilationException(
                 "Missing required files: " + string.Join(", ", files.MissingRequired.Take(8))
-                + (files.MissingRequired.Count > 8 ? " ..." : string.Empty));
+                + (files.MissingRequired.Count > 8 ? " ..." : string.Empty),
+                _warnings);
         }
 
         WarnForUnsupportedOptions(project);
@@ -60,7 +61,7 @@ internal sealed class ProjectCompiler
             }
 
             var sourcePath = ResolveSourcePath(project.ProjectDirectory, cleaned, baseDirectory, isProjectPath);
-            var archiveRelative = MakeArchiveRelative(project.ProjectDirectory, sourcePath, cleaned, flat, archiveBaseDirectory);
+            var archiveRelative = MakeArchiveRelative(project.ProjectDirectory, sourcePath, cleaned, flat, isProjectPath, archiveBaseDirectory);
             if (archiveRelative.Length == 0)
             {
                 return;
@@ -118,7 +119,7 @@ internal sealed class ProjectCompiler
         {
             AddPath(defaultTopic, "Default topic", required: true, isProjectPath: true);
             var defaultSource = ResolveSourcePath(project.ProjectDirectory, ArchivePath.CleanProjectPath(defaultTopic) ?? defaultTopic, null, isProjectPath: true);
-            defaultTopicArchivePath = MakeArchiveRelative(project.ProjectDirectory, defaultSource, defaultTopic, flat);
+            defaultTopicArchivePath = MakeArchiveRelative(project.ProjectDirectory, defaultSource, defaultTopic, flat, isProjectPath: true);
         }
 
         if (_options.ScanLinks)
@@ -209,7 +210,7 @@ internal sealed class ProjectCompiler
         }
 
         var source = ResolveSourcePath(project.ProjectDirectory, cleaned, null, isProjectPath: true);
-        return MakeArchiveRelative(project.ProjectDirectory, source, cleaned, flat);
+        return MakeArchiveRelative(project.ProjectDirectory, source, cleaned, flat, isProjectPath: true);
     }
 
     private void WarnForUnsupportedOptions(HhpProject project)
@@ -289,12 +290,16 @@ internal sealed class ProjectCompiler
             || path.StartsWith("//", StringComparison.Ordinal);
     }
 
-    private static string MakeArchiveRelative(string projectDirectory, string sourcePath, string originalPath, bool flat, string? archiveBaseDirectory = null)
+    private static string MakeArchiveRelative(string projectDirectory, string sourcePath, string originalPath, bool flat, bool isProjectPath, string? archiveBaseDirectory = null)
     {
         string relative;
         if (IsUnderDirectory(projectDirectory, sourcePath))
         {
             relative = Path.GetRelativePath(projectDirectory, sourcePath);
+        }
+        else if (isProjectPath)
+        {
+            relative = Path.GetFileName(sourcePath);
         }
         else if (!string.IsNullOrEmpty(archiveBaseDirectory) && !IsRootedPath(originalPath))
         {

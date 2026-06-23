@@ -1,0 +1,15 @@
+# Formal Inspection Follow-Up Tests
+
+These tests should be added or kept before treating the inspected behavior as robust.
+
+| ID | Type | Purpose | Expected result |
+| --- | --- | --- | --- |
+| FI-001 | Added injectable-writer regression test | Simulate a temporary-file write failure before final CHM publication. | Existing output is preserved, no partial final output is published, and temporary files are cleaned up. |
+| FI-002 | Added boundary/integration and bounded generated tests; platform expansion still recommended | Generate project-relative paths containing leading `..`, rooted paths, blank segments, dot-only paths, outside paths, basename collisions, and 512 deterministic generated seeds. | Archive paths never escape the intended archive namespace; outside project files are basename-only; collisions warn and keep first. |
+| FI-003 | Added boundary, syntax, and bounded generated tests; parser-fuzz expansion still recommended | Generate HTML/CSS/HHC/HHK links with external schemes, malformed percent escapes, fragments, queries, UNC paths, mixed-case attributes, CSS imports, CSS urls, flat rewrites, and 128 deterministic generated rewrite seeds. | Local collection, ignore, rewrite, and warning behavior matches the reviewed specification. |
+| FI-004 | Added parser boundary tests; generated-property expansion still recommended | Generate HHP option lines with duplicate keys, blank values, quotes, unbalanced quotes, unknown sections, truthy values, CR-only line endings, and BOM/declared-language combinations. | Parsed options and warnings match the reviewed specification. |
+| FI-005 | Added encoding integration/direct and bounded generated coverage; broader codepage corpus still recommended | Use declared CP932, invalid UTF-8 fallback, ANSI fallback, UTF-8 BOM, UTF-16 BOM, and 64 generated invalid UTF-8 fallback seeds. | Encoding selection is observable in metadata and does not silently corrupt required project fields. |
+| FI-006 | Added integration test | Project contains unsupported HHW features. | Each unsupported feature emits a warning, compilation still succeeds, and omitted CHM features are documented. |
+| FI-007 | Design/integration test | Long-running or very large project compile is interrupted externally. | Product decision is made: no cancellation support is documented, or a cancellation/timeout path is implemented and tested. |
+| FI-008 | Added direct tests | Help/version short-circuit, missing `--out` value, optional link-scan read failure, publish failure after temp staging, and oversized directory entry. | Tests prove selected CLI, I/O, and boundary branches are wired to implementation rather than only modeled. |
+| FI-009 | Remaining stress/fault/property work | Platform/high-volume same-output compile stress, crash/stale-temp cleanup after process death, independent-reader CHM differential validation, platform-matrix path behavior, and high-volume path/link/encoding fuzz seeds from `fuzzing-seeds.md`. | These areas are not yet fully verified and should be covered outside the finite TLA abstraction. |

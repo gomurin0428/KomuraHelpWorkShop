@@ -1,0 +1,1264 @@
+---- MODULE ImplementationConformance ----
+EXTENDS Integers, GherkinSpec
+
+(*
+Detailed implementation-stage model checked against the Gherkin obligations.
+
+This is intentionally different from the generated per-use-case smoke models:
+state is not finalized in one step. The model walks the same observable stages
+as Program.Main, CliOptions.Parse, HhpProject.Load, ProjectCompiler.CollectFiles,
+ProjectCompiler.BuildMetadata, and ChmWriter.Write.
+*)
+
+VARIABLES
+  scenario,
+  phase,
+  cliMode,
+  projectState,
+  collectionTags,
+  archive,
+  metadata,
+  writerTags,
+  stdout,
+  stderr,
+  warnings,
+  exitCode,
+  chmCreated,
+  visited
+
+vars == <<
+  scenario,
+  phase,
+  cliMode,
+  projectState,
+  collectionTags,
+  archive,
+  metadata,
+  writerTags,
+  stdout,
+  stderr,
+  warnings,
+  exitCode,
+  chmCreated,
+  visited
+>>
+
+TerminalCliModes == {"Help", "Version", "ArgError"}
+
+ImplScenarios == {"UC001_Cli_NoArgsHelp", "UC002_Cli_HelpOptions", "UC003_Cli_Version", "UC004_Cli_UnknownOption", "UC005_Cli_OutMissingValue", "UC006_Cli_MissingProjectArg", "UC007_Cli_MultipleProjects", "UC008_Hhp_StandardCompile", "UC009_Hhp_OutRelativeOverride", "UC010_Hhp_OutAbsoluteOverride", "UC011_Hhp_CompiledFileOmitted", "UC012_Hhp_ProjectMissing", "UC013_Hhp_CommentsIgnored", "UC014_Hhp_CaseInsensitiveNames", "UC015_Hhp_QuotedValues", "UC016_Hhp_DuplicateOptionLastWins", "UC017_Hhp_PreSectionLinesIgnored", "UC018_Files_RequiredFiles", "UC019_Files_DefaultTopicFirstHtml", "UC020_Files_GenerateContents", "UC021_Files_MissingRequiredFails", "UC022_Files_AllowMissing", "UC023_Files_DuplicateSameFile", "UC024_Files_DuplicateConflict", "UC025_Files_Verbose", "UC026_Links_HtmlHrefSrc", "UC027_Links_CssImportUrl", "UC028_Links_LocalParam", "UC029_Links_NoLinkScan", "UC030_Links_ExternalIgnored", "UC031_Links_QueryFragment", "UC032_Links_EntityPercent", "UC033_Links_RelativeBase", "UC034_Links_RootRelative", "UC035_Links_NonScannable", "UC036_Links_OptionalMissing", "UC037_Paths_NormalArchivePath", "UC038_Paths_NormalizeDots", "UC039_Paths_OutsideRelativeLink", "UC040_Paths_FlatNames", "UC041_Paths_FlatRewrite", "UC042_Encoding_BomText", "UC043_Encoding_StrictUtf8", "UC044_Encoding_LcidAnsi", "UC045_Encoding_DeclaredLanguageRead", "UC046_Encoding_CurrentCultureFallback", "UC047_Encoding_DbcsLanguages", "UC048_Metadata_CoreFields", "UC049_Metadata_TitleOmitted", "UC050_Metadata_DefaultWindowMain", "UC051_Metadata_WindowAndFont", "UC052_Chm_InternalStreams", "UC053_Chm_SmallPmglOnly", "UC054_Chm_LargePmgi", "UC055_Chm_Uncompressed", "UC056_Unsupported_FullTextSearch", "UC057_Unsupported_BinaryToc", "UC058_Unsupported_BinaryIndex", "UC059_Unsupported_MergeFiles", "UC060_Unsupported_WindowsSection", "UC061_Error_OutputUnwritable", "UC062_Error_DirectoryEntryTooLarge", "UC063_Error_DirectoryTooLarge", "UC064_Cli_HelpShortCircuits", "UC065_Cli_VersionShortCircuits", "UC066_Cli_RepeatedOutLastWins", "UC067_Cli_OutBeforeProject", "UC068_Hhp_BlankCompiledFileIgnored", "UC069_Hhp_UnbalancedQuoteLiteral", "UC070_Hhp_TruthyFlatOn", "UC071_Files_DotPathIgnored", "UC072_Files_AbsoluteProjectFileNameOnly", "UC073_Files_OutsideRelativeProjectPath", "UC074_Links_EmptyAndFragmentIgnored", "UC075_Links_UncIgnored", "UC076_Links_MalformedPercentKept", "UC077_Links_ReadErrorAbsorbed", "UC078_Encoding_InvalidUtf8Fallback", "UC079_Encoding_LanguageHexWithoutPrefix", "UC080_Metadata_NoDefaultTopicWhenNoHtml", "UC081_Metadata_FlatOptionArchivePaths", "UC082_Chm_StringTableDeduplicates", "UC083_Error_CollectInputReadFailure", "UC084_Error_WriterInputReadFailure", "UC085_Error_LockedOutputPreserved", "UC086_Error_MetadataEntryTooLarge", "UC087_Files_GeneratedContentsEscapesHtml"}
+ArgErrorScenarios == {"UC004_Cli_UnknownOption", "UC005_Cli_OutMissingValue", "UC006_Cli_MissingProjectArg", "UC007_Cli_MultipleProjects"}
+CompileErrorScenarios == {"UC012_Hhp_ProjectMissing", "UC021_Files_MissingRequiredFails", "UC061_Error_OutputUnwritable", "UC062_Error_DirectoryEntryTooLarge", "UC063_Error_DirectoryTooLarge", "UC083_Error_CollectInputReadFailure", "UC084_Error_WriterInputReadFailure", "UC085_Error_LockedOutputPreserved", "UC086_Error_MetadataEntryTooLarge"}
+WarningScenarios == {"UC020_Files_GenerateContents", "UC021_Files_MissingRequiredFails", "UC022_Files_AllowMissing", "UC024_Files_DuplicateConflict", "UC036_Links_OptionalMissing", "UC056_Unsupported_FullTextSearch", "UC057_Unsupported_BinaryToc", "UC058_Unsupported_BinaryIndex", "UC059_Unsupported_MergeFiles", "UC060_Unsupported_WindowsSection", "UC071_Files_DotPathIgnored", "UC080_Metadata_NoDefaultTopicWhenNoHtml", "UC087_Files_GeneratedContentsEscapesHtml"}
+FailureWithoutChmScenarios == {"UC004_Cli_UnknownOption", "UC005_Cli_OutMissingValue", "UC006_Cli_MissingProjectArg", "UC007_Cli_MultipleProjects", "UC012_Hhp_ProjectMissing", "UC021_Files_MissingRequiredFails", "UC061_Error_OutputUnwritable", "UC062_Error_DirectoryEntryTooLarge", "UC063_Error_DirectoryTooLarge", "UC083_Error_CollectInputReadFailure", "UC084_Error_WriterInputReadFailure", "UC085_Error_LockedOutputPreserved", "UC086_Error_MetadataEntryTooLarge"}
+WarningSuccessScenarios == {"UC020_Files_GenerateContents", "UC022_Files_AllowMissing", "UC024_Files_DuplicateConflict", "UC036_Links_OptionalMissing", "UC056_Unsupported_FullTextSearch", "UC057_Unsupported_BinaryToc", "UC058_Unsupported_BinaryIndex", "UC059_Unsupported_MergeFiles", "UC060_Unsupported_WindowsSection", "UC071_Files_DotPathIgnored", "UC080_Metadata_NoDefaultTopicWhenNoHtml", "UC087_Files_GeneratedContentsEscapesHtml"}
+ImplCollectionTags == {"AbsoluteProjectFile", "AllowMissing", "AnsiFallback", "ArchiveBaseDirectory", "BomDetected", "CleanQueryFragment", "CollectFailed", "CollectInputReadError", "CssLinks", "DeclaredLanguageEncoding", "DecodeHtmlPercent", "DefaultTopicFirstHtml", "DotPathIgnored", "DuplicateConflict", "DuplicateSameFile", "EmptyLinkIgnored", "ExplicitFiles", "ExternalLinksIgnored", "Flat", "FlatArchive", "FlatRewrite", "GeneratedContents", "GeneratedContentsEscaped", "HexLanguageWithoutPrefix", "HtmlLinks", "InvalidUtf8Fallback", "LanguageParsed", "LinkReadFailed", "LinkScan", "LocalParamLinks", "MalformedPercentKept", "MissingRequired", "NoDefaultTopic", "NoLinkScan", "NonScannable", "NormalizeArchivePath", "NormalizeDots", "OptionalMissing", "OutsideProjectFile", "RelativeBase", "RequiredFiles", "RootRelative", "Skipped", "SourceIndexEmbedded", "SourceTocEmbedded", "TruthyOption", "UncLinkIgnored", "UnsupportedWarning", "Utf8Strict", "VerboseLog"}
+ImplArchivePaths == {"Table of Contents.hhc", "asset.bin", "bad%ZZ.html", "bg.png", "downloads/manual.pdf", "help.css", "images/bg.png", "images/logo.png", "index.hhk", "index.html", "logo.png", "page.html", "readme.txt", "shared/page.html", "site.css", "styles/site.css", "styles/theme.css", "toc.hhc", "topic-&-one.html", "topics/a b.html", "topics/intro.html", "topics/reference.html", "topics/start.html", "topics/usage.html", "usage.html"}
+ImplMetadataTags == {"Contents:Table of Contents.hhc", "Contents:toc.hhc", "ContentsGenerated:true", "DBCS:true", "DefaultTopic:index.html", "DefaultTopic:topics/start.html", "Encoding:BOM", "Encoding:InvalidUtf8Fallback", "Encoding:UTF8", "ExistingOutput:Preserved", "Font:MS UI Gothic, 9", "FullTextSearch:false", "GeneratedContentsEscaped:true", "Hhp:BlankOptionIgnored", "Hhp:CaseInsensitive", "Hhp:CommentsIgnored", "Hhp:LastOptionWins", "Hhp:PreSectionIgnored", "Hhp:QuotedValues", "Hhp:UnbalancedQuoteLiteral", "Index:index.hhk", "KeptSource:a/index.html", "LCID:0x0411", "LCID:0x0411-no-prefix", "LCID:CurrentCulture", "LinksRewrittenForFlat:true", "MergeFiles:metadata-only", "Output:absolute/output.chm", "Output:project/dist/output.chm", "Output:project/final.chm", "Output:project/help.chm", "Output:project/manual.chm", "StringTable:Deduplicated", "TextEncoding:AnsiFallback", "TextEncoding:CP932", "Title:'Open", "Title:New Title", "Title:Oversized", "Title:Product Help", "Title:Project Title", "Title:Quoted Title", "Title:manual", "Window:custom", "Window:main", "Windows:generated-default"}
+ImplWriterTags == {"DirectoryEntryTooLarge", "DirectoryTooLarge", "ExistingOutputPreserved", "InputReadError", "InternalStreams", "Itbits", "MetadataEntryTooLarge", "NameList", "NoPMGI", "OutputCreateLocked", "OutputWriteError", "PMGI", "PMGL", "Skipped", "StringTableDeduplicated", "Strings", "System", "Uncompressed", "Windows", "WriteFailed"}
+ImplStdoutTags == {"Banner", "Compiled", "Files", "Options", "Usage", "Version"}
+ImplStderrTags == {"#SYSTEM entry is too large", "--out requires a path", "Directory entry is too large", "Missing required files", "Project file not found", "add log", "directory is too large for this compiler version", "error", "input file read error", "missing .hhp project path", "only one .hhp project", "output file locked", "unknown option"}
+ImplWarningTags == {"Binary Index is not implemented", "Binary TOC is not implemented", "Full-text search index generation is not implemented", "MERGE FILES is not generated", "WINDOWS custom settings are not parsed", "duplicate archive path", "file not found", "generated toc"}
+ImplVisitedTags == {"CliParsed", "Done", "FilesCollected", "MetadataBuilt", "ProjectLoaded", "ProjectMissing", "Start", "WriterRan"}
+
+ImplCliParse(s) ==
+  CASE
+    s = "UC001_Cli_NoArgsHelp" -> "Help"
+  [] s = "UC002_Cli_HelpOptions" -> "Help"
+  [] s = "UC003_Cli_Version" -> "Version"
+  [] s = "UC004_Cli_UnknownOption" -> "ArgError"
+  [] s = "UC005_Cli_OutMissingValue" -> "ArgError"
+  [] s = "UC006_Cli_MissingProjectArg" -> "ArgError"
+  [] s = "UC007_Cli_MultipleProjects" -> "ArgError"
+  [] s = "UC008_Hhp_StandardCompile" -> "Compile"
+  [] s = "UC009_Hhp_OutRelativeOverride" -> "Compile"
+  [] s = "UC010_Hhp_OutAbsoluteOverride" -> "Compile"
+  [] s = "UC011_Hhp_CompiledFileOmitted" -> "Compile"
+  [] s = "UC012_Hhp_ProjectMissing" -> "Compile"
+  [] s = "UC013_Hhp_CommentsIgnored" -> "Compile"
+  [] s = "UC014_Hhp_CaseInsensitiveNames" -> "Compile"
+  [] s = "UC015_Hhp_QuotedValues" -> "Compile"
+  [] s = "UC016_Hhp_DuplicateOptionLastWins" -> "Compile"
+  [] s = "UC017_Hhp_PreSectionLinesIgnored" -> "Compile"
+  [] s = "UC018_Files_RequiredFiles" -> "Compile"
+  [] s = "UC019_Files_DefaultTopicFirstHtml" -> "Compile"
+  [] s = "UC020_Files_GenerateContents" -> "Compile"
+  [] s = "UC021_Files_MissingRequiredFails" -> "Compile"
+  [] s = "UC022_Files_AllowMissing" -> "Compile"
+  [] s = "UC023_Files_DuplicateSameFile" -> "Compile"
+  [] s = "UC024_Files_DuplicateConflict" -> "Compile"
+  [] s = "UC025_Files_Verbose" -> "Compile"
+  [] s = "UC026_Links_HtmlHrefSrc" -> "Compile"
+  [] s = "UC027_Links_CssImportUrl" -> "Compile"
+  [] s = "UC028_Links_LocalParam" -> "Compile"
+  [] s = "UC029_Links_NoLinkScan" -> "Compile"
+  [] s = "UC030_Links_ExternalIgnored" -> "Compile"
+  [] s = "UC031_Links_QueryFragment" -> "Compile"
+  [] s = "UC032_Links_EntityPercent" -> "Compile"
+  [] s = "UC033_Links_RelativeBase" -> "Compile"
+  [] s = "UC034_Links_RootRelative" -> "Compile"
+  [] s = "UC035_Links_NonScannable" -> "Compile"
+  [] s = "UC036_Links_OptionalMissing" -> "Compile"
+  [] s = "UC037_Paths_NormalArchivePath" -> "Compile"
+  [] s = "UC038_Paths_NormalizeDots" -> "Compile"
+  [] s = "UC039_Paths_OutsideRelativeLink" -> "Compile"
+  [] s = "UC040_Paths_FlatNames" -> "Compile"
+  [] s = "UC041_Paths_FlatRewrite" -> "Compile"
+  [] s = "UC042_Encoding_BomText" -> "Compile"
+  [] s = "UC043_Encoding_StrictUtf8" -> "Compile"
+  [] s = "UC044_Encoding_LcidAnsi" -> "Compile"
+  [] s = "UC045_Encoding_DeclaredLanguageRead" -> "Compile"
+  [] s = "UC046_Encoding_CurrentCultureFallback" -> "Compile"
+  [] s = "UC047_Encoding_DbcsLanguages" -> "Compile"
+  [] s = "UC048_Metadata_CoreFields" -> "Compile"
+  [] s = "UC049_Metadata_TitleOmitted" -> "Compile"
+  [] s = "UC050_Metadata_DefaultWindowMain" -> "Compile"
+  [] s = "UC051_Metadata_WindowAndFont" -> "Compile"
+  [] s = "UC052_Chm_InternalStreams" -> "Compile"
+  [] s = "UC053_Chm_SmallPmglOnly" -> "Compile"
+  [] s = "UC054_Chm_LargePmgi" -> "Compile"
+  [] s = "UC055_Chm_Uncompressed" -> "Compile"
+  [] s = "UC056_Unsupported_FullTextSearch" -> "Compile"
+  [] s = "UC057_Unsupported_BinaryToc" -> "Compile"
+  [] s = "UC058_Unsupported_BinaryIndex" -> "Compile"
+  [] s = "UC059_Unsupported_MergeFiles" -> "Compile"
+  [] s = "UC060_Unsupported_WindowsSection" -> "Compile"
+  [] s = "UC061_Error_OutputUnwritable" -> "Compile"
+  [] s = "UC062_Error_DirectoryEntryTooLarge" -> "Compile"
+  [] s = "UC063_Error_DirectoryTooLarge" -> "Compile"
+  [] s = "UC064_Cli_HelpShortCircuits" -> "Help"
+  [] s = "UC065_Cli_VersionShortCircuits" -> "Version"
+  [] s = "UC066_Cli_RepeatedOutLastWins" -> "Compile"
+  [] s = "UC067_Cli_OutBeforeProject" -> "Compile"
+  [] s = "UC068_Hhp_BlankCompiledFileIgnored" -> "Compile"
+  [] s = "UC069_Hhp_UnbalancedQuoteLiteral" -> "Compile"
+  [] s = "UC070_Hhp_TruthyFlatOn" -> "Compile"
+  [] s = "UC071_Files_DotPathIgnored" -> "Compile"
+  [] s = "UC072_Files_AbsoluteProjectFileNameOnly" -> "Compile"
+  [] s = "UC073_Files_OutsideRelativeProjectPath" -> "Compile"
+  [] s = "UC074_Links_EmptyAndFragmentIgnored" -> "Compile"
+  [] s = "UC075_Links_UncIgnored" -> "Compile"
+  [] s = "UC076_Links_MalformedPercentKept" -> "Compile"
+  [] s = "UC077_Links_ReadErrorAbsorbed" -> "Compile"
+  [] s = "UC078_Encoding_InvalidUtf8Fallback" -> "Compile"
+  [] s = "UC079_Encoding_LanguageHexWithoutPrefix" -> "Compile"
+  [] s = "UC080_Metadata_NoDefaultTopicWhenNoHtml" -> "Compile"
+  [] s = "UC081_Metadata_FlatOptionArchivePaths" -> "Compile"
+  [] s = "UC082_Chm_StringTableDeduplicates" -> "Compile"
+  [] s = "UC083_Error_CollectInputReadFailure" -> "Compile"
+  [] s = "UC084_Error_WriterInputReadFailure" -> "Compile"
+  [] s = "UC085_Error_LockedOutputPreserved" -> "Compile"
+  [] s = "UC086_Error_MetadataEntryTooLarge" -> "Compile"
+  [] s = "UC087_Files_GeneratedContentsEscapesHtml" -> "Compile"
+  [] OTHER -> "Unknown"
+
+ImplProjectLoad(s) ==
+  CASE
+    s = "UC001_Cli_NoArgsHelp" -> "Skipped"
+  [] s = "UC002_Cli_HelpOptions" -> "Skipped"
+  [] s = "UC003_Cli_Version" -> "Skipped"
+  [] s = "UC004_Cli_UnknownOption" -> "Skipped"
+  [] s = "UC005_Cli_OutMissingValue" -> "Skipped"
+  [] s = "UC006_Cli_MissingProjectArg" -> "Skipped"
+  [] s = "UC007_Cli_MultipleProjects" -> "Skipped"
+  [] s = "UC008_Hhp_StandardCompile" -> "Loaded"
+  [] s = "UC009_Hhp_OutRelativeOverride" -> "Loaded"
+  [] s = "UC010_Hhp_OutAbsoluteOverride" -> "Loaded"
+  [] s = "UC011_Hhp_CompiledFileOmitted" -> "Loaded"
+  [] s = "UC012_Hhp_ProjectMissing" -> "Missing"
+  [] s = "UC013_Hhp_CommentsIgnored" -> "Loaded"
+  [] s = "UC014_Hhp_CaseInsensitiveNames" -> "Loaded"
+  [] s = "UC015_Hhp_QuotedValues" -> "Loaded"
+  [] s = "UC016_Hhp_DuplicateOptionLastWins" -> "Loaded"
+  [] s = "UC017_Hhp_PreSectionLinesIgnored" -> "Loaded"
+  [] s = "UC018_Files_RequiredFiles" -> "Loaded"
+  [] s = "UC019_Files_DefaultTopicFirstHtml" -> "Loaded"
+  [] s = "UC020_Files_GenerateContents" -> "Loaded"
+  [] s = "UC021_Files_MissingRequiredFails" -> "Loaded"
+  [] s = "UC022_Files_AllowMissing" -> "Loaded"
+  [] s = "UC023_Files_DuplicateSameFile" -> "Loaded"
+  [] s = "UC024_Files_DuplicateConflict" -> "Loaded"
+  [] s = "UC025_Files_Verbose" -> "Loaded"
+  [] s = "UC026_Links_HtmlHrefSrc" -> "Loaded"
+  [] s = "UC027_Links_CssImportUrl" -> "Loaded"
+  [] s = "UC028_Links_LocalParam" -> "Loaded"
+  [] s = "UC029_Links_NoLinkScan" -> "Loaded"
+  [] s = "UC030_Links_ExternalIgnored" -> "Loaded"
+  [] s = "UC031_Links_QueryFragment" -> "Loaded"
+  [] s = "UC032_Links_EntityPercent" -> "Loaded"
+  [] s = "UC033_Links_RelativeBase" -> "Loaded"
+  [] s = "UC034_Links_RootRelative" -> "Loaded"
+  [] s = "UC035_Links_NonScannable" -> "Loaded"
+  [] s = "UC036_Links_OptionalMissing" -> "Loaded"
+  [] s = "UC037_Paths_NormalArchivePath" -> "Loaded"
+  [] s = "UC038_Paths_NormalizeDots" -> "Loaded"
+  [] s = "UC039_Paths_OutsideRelativeLink" -> "Loaded"
+  [] s = "UC040_Paths_FlatNames" -> "Loaded"
+  [] s = "UC041_Paths_FlatRewrite" -> "Loaded"
+  [] s = "UC042_Encoding_BomText" -> "Loaded"
+  [] s = "UC043_Encoding_StrictUtf8" -> "Loaded"
+  [] s = "UC044_Encoding_LcidAnsi" -> "Loaded"
+  [] s = "UC045_Encoding_DeclaredLanguageRead" -> "Loaded"
+  [] s = "UC046_Encoding_CurrentCultureFallback" -> "Loaded"
+  [] s = "UC047_Encoding_DbcsLanguages" -> "Loaded"
+  [] s = "UC048_Metadata_CoreFields" -> "Loaded"
+  [] s = "UC049_Metadata_TitleOmitted" -> "Loaded"
+  [] s = "UC050_Metadata_DefaultWindowMain" -> "Loaded"
+  [] s = "UC051_Metadata_WindowAndFont" -> "Loaded"
+  [] s = "UC052_Chm_InternalStreams" -> "Loaded"
+  [] s = "UC053_Chm_SmallPmglOnly" -> "Loaded"
+  [] s = "UC054_Chm_LargePmgi" -> "Loaded"
+  [] s = "UC055_Chm_Uncompressed" -> "Loaded"
+  [] s = "UC056_Unsupported_FullTextSearch" -> "Loaded"
+  [] s = "UC057_Unsupported_BinaryToc" -> "Loaded"
+  [] s = "UC058_Unsupported_BinaryIndex" -> "Loaded"
+  [] s = "UC059_Unsupported_MergeFiles" -> "Loaded"
+  [] s = "UC060_Unsupported_WindowsSection" -> "Loaded"
+  [] s = "UC061_Error_OutputUnwritable" -> "Loaded"
+  [] s = "UC062_Error_DirectoryEntryTooLarge" -> "Loaded"
+  [] s = "UC063_Error_DirectoryTooLarge" -> "Loaded"
+  [] s = "UC064_Cli_HelpShortCircuits" -> "Skipped"
+  [] s = "UC065_Cli_VersionShortCircuits" -> "Skipped"
+  [] s = "UC066_Cli_RepeatedOutLastWins" -> "Loaded"
+  [] s = "UC067_Cli_OutBeforeProject" -> "Loaded"
+  [] s = "UC068_Hhp_BlankCompiledFileIgnored" -> "Loaded"
+  [] s = "UC069_Hhp_UnbalancedQuoteLiteral" -> "Loaded"
+  [] s = "UC070_Hhp_TruthyFlatOn" -> "Loaded"
+  [] s = "UC071_Files_DotPathIgnored" -> "Loaded"
+  [] s = "UC072_Files_AbsoluteProjectFileNameOnly" -> "Loaded"
+  [] s = "UC073_Files_OutsideRelativeProjectPath" -> "Loaded"
+  [] s = "UC074_Links_EmptyAndFragmentIgnored" -> "Loaded"
+  [] s = "UC075_Links_UncIgnored" -> "Loaded"
+  [] s = "UC076_Links_MalformedPercentKept" -> "Loaded"
+  [] s = "UC077_Links_ReadErrorAbsorbed" -> "Loaded"
+  [] s = "UC078_Encoding_InvalidUtf8Fallback" -> "Loaded"
+  [] s = "UC079_Encoding_LanguageHexWithoutPrefix" -> "Loaded"
+  [] s = "UC080_Metadata_NoDefaultTopicWhenNoHtml" -> "Loaded"
+  [] s = "UC081_Metadata_FlatOptionArchivePaths" -> "Loaded"
+  [] s = "UC082_Chm_StringTableDeduplicates" -> "Loaded"
+  [] s = "UC083_Error_CollectInputReadFailure" -> "Loaded"
+  [] s = "UC084_Error_WriterInputReadFailure" -> "Loaded"
+  [] s = "UC085_Error_LockedOutputPreserved" -> "Loaded"
+  [] s = "UC086_Error_MetadataEntryTooLarge" -> "Loaded"
+  [] s = "UC087_Files_GeneratedContentsEscapesHtml" -> "Loaded"
+  [] OTHER -> "Unknown"
+
+ImplCollectTags(s) ==
+  CASE
+    s = "UC001_Cli_NoArgsHelp" -> {"Skipped"}
+  [] s = "UC002_Cli_HelpOptions" -> {"Skipped"}
+  [] s = "UC003_Cli_Version" -> {"Skipped"}
+  [] s = "UC004_Cli_UnknownOption" -> {"Skipped"}
+  [] s = "UC005_Cli_OutMissingValue" -> {"Skipped"}
+  [] s = "UC006_Cli_MissingProjectArg" -> {"Skipped"}
+  [] s = "UC007_Cli_MultipleProjects" -> {"Skipped"}
+  [] s = "UC008_Hhp_StandardCompile" -> {"RequiredFiles"}
+  [] s = "UC009_Hhp_OutRelativeOverride" -> {"RequiredFiles"}
+  [] s = "UC010_Hhp_OutAbsoluteOverride" -> {"RequiredFiles"}
+  [] s = "UC011_Hhp_CompiledFileOmitted" -> {"RequiredFiles"}
+  [] s = "UC012_Hhp_ProjectMissing" -> {"Skipped"}
+  [] s = "UC013_Hhp_CommentsIgnored" -> {"ExplicitFiles"}
+  [] s = "UC014_Hhp_CaseInsensitiveNames" -> {"ExplicitFiles"}
+  [] s = "UC015_Hhp_QuotedValues" -> {"ExplicitFiles"}
+  [] s = "UC016_Hhp_DuplicateOptionLastWins" -> {"ExplicitFiles"}
+  [] s = "UC017_Hhp_PreSectionLinesIgnored" -> {"ExplicitFiles"}
+  [] s = "UC018_Files_RequiredFiles" -> {"RequiredFiles"}
+  [] s = "UC019_Files_DefaultTopicFirstHtml" -> {"DefaultTopicFirstHtml"}
+  [] s = "UC020_Files_GenerateContents" -> {"GeneratedContents"}
+  [] s = "UC021_Files_MissingRequiredFails" -> {"CollectFailed", "MissingRequired"}
+  [] s = "UC022_Files_AllowMissing" -> {"AllowMissing", "MissingRequired"}
+  [] s = "UC023_Files_DuplicateSameFile" -> {"DuplicateSameFile"}
+  [] s = "UC024_Files_DuplicateConflict" -> {"DuplicateConflict", "Flat"}
+  [] s = "UC025_Files_Verbose" -> {"VerboseLog"}
+  [] s = "UC026_Links_HtmlHrefSrc" -> {"HtmlLinks", "LinkScan"}
+  [] s = "UC027_Links_CssImportUrl" -> {"CssLinks", "LinkScan"}
+  [] s = "UC028_Links_LocalParam" -> {"LinkScan", "LocalParamLinks"}
+  [] s = "UC029_Links_NoLinkScan" -> {"ExplicitFiles", "NoLinkScan"}
+  [] s = "UC030_Links_ExternalIgnored" -> {"ExternalLinksIgnored"}
+  [] s = "UC031_Links_QueryFragment" -> {"CleanQueryFragment", "LinkScan"}
+  [] s = "UC032_Links_EntityPercent" -> {"DecodeHtmlPercent", "LinkScan"}
+  [] s = "UC033_Links_RelativeBase" -> {"LinkScan", "RelativeBase"}
+  [] s = "UC034_Links_RootRelative" -> {"LinkScan", "RootRelative"}
+  [] s = "UC035_Links_NonScannable" -> {"NonScannable"}
+  [] s = "UC036_Links_OptionalMissing" -> {"LinkScan", "OptionalMissing"}
+  [] s = "UC037_Paths_NormalArchivePath" -> {"NormalizeArchivePath"}
+  [] s = "UC038_Paths_NormalizeDots" -> {"NormalizeDots"}
+  [] s = "UC039_Paths_OutsideRelativeLink" -> {"ArchiveBaseDirectory", "LinkScan"}
+  [] s = "UC040_Paths_FlatNames" -> {"Flat", "FlatArchive"}
+  [] s = "UC041_Paths_FlatRewrite" -> {"Flat", "FlatRewrite", "LinkScan"}
+  [] s = "UC042_Encoding_BomText" -> {"BomDetected"}
+  [] s = "UC043_Encoding_StrictUtf8" -> {"Utf8Strict"}
+  [] s = "UC044_Encoding_LcidAnsi" -> {"LanguageParsed"}
+  [] s = "UC045_Encoding_DeclaredLanguageRead" -> {"DeclaredLanguageEncoding"}
+  [] s = "UC046_Encoding_CurrentCultureFallback" -> {"AnsiFallback"}
+  [] s = "UC047_Encoding_DbcsLanguages" -> {"LanguageParsed"}
+  [] s = "UC048_Metadata_CoreFields" -> {"RequiredFiles"}
+  [] s = "UC049_Metadata_TitleOmitted" -> {"ExplicitFiles"}
+  [] s = "UC050_Metadata_DefaultWindowMain" -> {"ExplicitFiles"}
+  [] s = "UC051_Metadata_WindowAndFont" -> {"ExplicitFiles"}
+  [] s = "UC052_Chm_InternalStreams" -> {"ExplicitFiles"}
+  [] s = "UC053_Chm_SmallPmglOnly" -> {"ExplicitFiles"}
+  [] s = "UC054_Chm_LargePmgi" -> {"ExplicitFiles"}
+  [] s = "UC055_Chm_Uncompressed" -> {"ExplicitFiles"}
+  [] s = "UC056_Unsupported_FullTextSearch" -> {"UnsupportedWarning"}
+  [] s = "UC057_Unsupported_BinaryToc" -> {"SourceTocEmbedded", "UnsupportedWarning"}
+  [] s = "UC058_Unsupported_BinaryIndex" -> {"SourceIndexEmbedded", "UnsupportedWarning"}
+  [] s = "UC059_Unsupported_MergeFiles" -> {"UnsupportedWarning"}
+  [] s = "UC060_Unsupported_WindowsSection" -> {"UnsupportedWarning"}
+  [] s = "UC061_Error_OutputUnwritable" -> {"ExplicitFiles"}
+  [] s = "UC062_Error_DirectoryEntryTooLarge" -> {"ExplicitFiles"}
+  [] s = "UC063_Error_DirectoryTooLarge" -> {"ExplicitFiles"}
+  [] s = "UC064_Cli_HelpShortCircuits" -> {"Skipped"}
+  [] s = "UC065_Cli_VersionShortCircuits" -> {"Skipped"}
+  [] s = "UC066_Cli_RepeatedOutLastWins" -> {"RequiredFiles"}
+  [] s = "UC067_Cli_OutBeforeProject" -> {"RequiredFiles"}
+  [] s = "UC068_Hhp_BlankCompiledFileIgnored" -> {"RequiredFiles"}
+  [] s = "UC069_Hhp_UnbalancedQuoteLiteral" -> {"ExplicitFiles"}
+  [] s = "UC070_Hhp_TruthyFlatOn" -> {"Flat", "FlatArchive", "TruthyOption"}
+  [] s = "UC071_Files_DotPathIgnored" -> {"DotPathIgnored", "GeneratedContents"}
+  [] s = "UC072_Files_AbsoluteProjectFileNameOnly" -> {"AbsoluteProjectFile"}
+  [] s = "UC073_Files_OutsideRelativeProjectPath" -> {"OutsideProjectFile"}
+  [] s = "UC074_Links_EmptyAndFragmentIgnored" -> {"EmptyLinkIgnored", "LinkScan"}
+  [] s = "UC075_Links_UncIgnored" -> {"UncLinkIgnored"}
+  [] s = "UC076_Links_MalformedPercentKept" -> {"LinkScan", "MalformedPercentKept"}
+  [] s = "UC077_Links_ReadErrorAbsorbed" -> {"LinkReadFailed", "LinkScan"}
+  [] s = "UC078_Encoding_InvalidUtf8Fallback" -> {"AnsiFallback", "InvalidUtf8Fallback"}
+  [] s = "UC079_Encoding_LanguageHexWithoutPrefix" -> {"HexLanguageWithoutPrefix", "LanguageParsed"}
+  [] s = "UC080_Metadata_NoDefaultTopicWhenNoHtml" -> {"GeneratedContents", "NoDefaultTopic"}
+  [] s = "UC081_Metadata_FlatOptionArchivePaths" -> {"Flat", "FlatArchive"}
+  [] s = "UC082_Chm_StringTableDeduplicates" -> {"ExplicitFiles"}
+  [] s = "UC083_Error_CollectInputReadFailure" -> {"CollectFailed", "CollectInputReadError"}
+  [] s = "UC084_Error_WriterInputReadFailure" -> {"ExplicitFiles"}
+  [] s = "UC085_Error_LockedOutputPreserved" -> {"ExplicitFiles"}
+  [] s = "UC086_Error_MetadataEntryTooLarge" -> {"ExplicitFiles"}
+  [] s = "UC087_Files_GeneratedContentsEscapesHtml" -> {"GeneratedContents", "GeneratedContentsEscaped"}
+  [] OTHER -> {}
+
+ImplCollectArchive(s) ==
+  CASE
+    s = "UC001_Cli_NoArgsHelp" -> {}
+  [] s = "UC002_Cli_HelpOptions" -> {}
+  [] s = "UC003_Cli_Version" -> {}
+  [] s = "UC004_Cli_UnknownOption" -> {}
+  [] s = "UC005_Cli_OutMissingValue" -> {}
+  [] s = "UC006_Cli_MissingProjectArg" -> {}
+  [] s = "UC007_Cli_MultipleProjects" -> {}
+  [] s = "UC008_Hhp_StandardCompile" -> {"index.hhk", "index.html", "toc.hhc", "topics/intro.html"}
+  [] s = "UC009_Hhp_OutRelativeOverride" -> {"index.html"}
+  [] s = "UC010_Hhp_OutAbsoluteOverride" -> {"index.html"}
+  [] s = "UC011_Hhp_CompiledFileOmitted" -> {"index.html"}
+  [] s = "UC012_Hhp_ProjectMissing" -> {}
+  [] s = "UC013_Hhp_CommentsIgnored" -> {"index.html"}
+  [] s = "UC014_Hhp_CaseInsensitiveNames" -> {"index.html"}
+  [] s = "UC015_Hhp_QuotedValues" -> {"index.html"}
+  [] s = "UC016_Hhp_DuplicateOptionLastWins" -> {"index.html"}
+  [] s = "UC017_Hhp_PreSectionLinesIgnored" -> {"index.html"}
+  [] s = "UC018_Files_RequiredFiles" -> {"index.hhk", "index.html", "toc.hhc", "topics/start.html"}
+  [] s = "UC019_Files_DefaultTopicFirstHtml" -> {"index.html", "readme.txt"}
+  [] s = "UC020_Files_GenerateContents" -> {"Table of Contents.hhc", "index.html", "topics/usage.html"}
+  [] s = "UC021_Files_MissingRequiredFails" -> {}
+  [] s = "UC022_Files_AllowMissing" -> {"index.html"}
+  [] s = "UC023_Files_DuplicateSameFile" -> {"index.html"}
+  [] s = "UC024_Files_DuplicateConflict" -> {"index.html"}
+  [] s = "UC025_Files_Verbose" -> {"index.html"}
+  [] s = "UC026_Links_HtmlHrefSrc" -> {"images/logo.png", "index.html", "styles/site.css", "topics/intro.html"}
+  [] s = "UC027_Links_CssImportUrl" -> {"images/bg.png", "styles/site.css", "styles/theme.css"}
+  [] s = "UC028_Links_LocalParam" -> {"index.hhk", "toc.hhc", "topics/reference.html", "topics/usage.html"}
+  [] s = "UC029_Links_NoLinkScan" -> {"index.html"}
+  [] s = "UC030_Links_ExternalIgnored" -> {"index.html"}
+  [] s = "UC031_Links_QueryFragment" -> {"index.html", "topics/usage.html"}
+  [] s = "UC032_Links_EntityPercent" -> {"index.html", "topics/a b.html"}
+  [] s = "UC033_Links_RelativeBase" -> {"images/logo.png", "topics/intro.html"}
+  [] s = "UC034_Links_RootRelative" -> {"images/logo.png", "topics/intro.html"}
+  [] s = "UC035_Links_NonScannable" -> {"downloads/manual.pdf"}
+  [] s = "UC036_Links_OptionalMissing" -> {"index.html"}
+  [] s = "UC037_Paths_NormalArchivePath" -> {"topics/usage.html"}
+  [] s = "UC038_Paths_NormalizeDots" -> {"index.html"}
+  [] s = "UC039_Paths_OutsideRelativeLink" -> {"shared/page.html", "topics/intro.html"}
+  [] s = "UC040_Paths_FlatNames" -> {"help.css", "usage.html"}
+  [] s = "UC041_Paths_FlatRewrite" -> {"bg.png", "index.html", "logo.png", "site.css", "toc.hhc", "usage.html"}
+  [] s = "UC042_Encoding_BomText" -> {"index.html"}
+  [] s = "UC043_Encoding_StrictUtf8" -> {"index.html"}
+  [] s = "UC044_Encoding_LcidAnsi" -> {"toc.hhc"}
+  [] s = "UC045_Encoding_DeclaredLanguageRead" -> {"index.html"}
+  [] s = "UC046_Encoding_CurrentCultureFallback" -> {"index.html"}
+  [] s = "UC047_Encoding_DbcsLanguages" -> {"index.html"}
+  [] s = "UC048_Metadata_CoreFields" -> {"index.hhk", "index.html", "toc.hhc"}
+  [] s = "UC049_Metadata_TitleOmitted" -> {"index.html"}
+  [] s = "UC050_Metadata_DefaultWindowMain" -> {"index.html"}
+  [] s = "UC051_Metadata_WindowAndFont" -> {"index.html"}
+  [] s = "UC052_Chm_InternalStreams" -> {"index.html"}
+  [] s = "UC053_Chm_SmallPmglOnly" -> {"index.html"}
+  [] s = "UC054_Chm_LargePmgi" -> {"index.html"}
+  [] s = "UC055_Chm_Uncompressed" -> {"index.html"}
+  [] s = "UC056_Unsupported_FullTextSearch" -> {"index.html"}
+  [] s = "UC057_Unsupported_BinaryToc" -> {"toc.hhc"}
+  [] s = "UC058_Unsupported_BinaryIndex" -> {"index.hhk"}
+  [] s = "UC059_Unsupported_MergeFiles" -> {"index.html"}
+  [] s = "UC060_Unsupported_WindowsSection" -> {"index.html"}
+  [] s = "UC061_Error_OutputUnwritable" -> {"index.html"}
+  [] s = "UC062_Error_DirectoryEntryTooLarge" -> {"index.html"}
+  [] s = "UC063_Error_DirectoryTooLarge" -> {"index.html"}
+  [] s = "UC064_Cli_HelpShortCircuits" -> {}
+  [] s = "UC065_Cli_VersionShortCircuits" -> {}
+  [] s = "UC066_Cli_RepeatedOutLastWins" -> {"index.html"}
+  [] s = "UC067_Cli_OutBeforeProject" -> {"index.html"}
+  [] s = "UC068_Hhp_BlankCompiledFileIgnored" -> {"index.html"}
+  [] s = "UC069_Hhp_UnbalancedQuoteLiteral" -> {"index.html"}
+  [] s = "UC070_Hhp_TruthyFlatOn" -> {"help.css", "usage.html"}
+  [] s = "UC071_Files_DotPathIgnored" -> {"Table of Contents.hhc"}
+  [] s = "UC072_Files_AbsoluteProjectFileNameOnly" -> {"asset.bin"}
+  [] s = "UC073_Files_OutsideRelativeProjectPath" -> {"page.html"}
+  [] s = "UC074_Links_EmptyAndFragmentIgnored" -> {"index.html"}
+  [] s = "UC075_Links_UncIgnored" -> {"index.html"}
+  [] s = "UC076_Links_MalformedPercentKept" -> {"bad%ZZ.html", "index.html"}
+  [] s = "UC077_Links_ReadErrorAbsorbed" -> {"index.html"}
+  [] s = "UC078_Encoding_InvalidUtf8Fallback" -> {"index.html"}
+  [] s = "UC079_Encoding_LanguageHexWithoutPrefix" -> {"toc.hhc"}
+  [] s = "UC080_Metadata_NoDefaultTopicWhenNoHtml" -> {"Table of Contents.hhc", "readme.txt"}
+  [] s = "UC081_Metadata_FlatOptionArchivePaths" -> {"index.hhk", "index.html", "toc.hhc"}
+  [] s = "UC082_Chm_StringTableDeduplicates" -> {"index.html"}
+  [] s = "UC083_Error_CollectInputReadFailure" -> {}
+  [] s = "UC084_Error_WriterInputReadFailure" -> {"index.html"}
+  [] s = "UC085_Error_LockedOutputPreserved" -> {"index.html"}
+  [] s = "UC086_Error_MetadataEntryTooLarge" -> {"index.html"}
+  [] s = "UC087_Files_GeneratedContentsEscapesHtml" -> {"Table of Contents.hhc", "topic-&-one.html"}
+  [] OTHER -> {}
+
+ImplBuildMetadata(s) ==
+  CASE
+    s = "UC001_Cli_NoArgsHelp" -> {}
+  [] s = "UC002_Cli_HelpOptions" -> {}
+  [] s = "UC003_Cli_Version" -> {}
+  [] s = "UC004_Cli_UnknownOption" -> {}
+  [] s = "UC005_Cli_OutMissingValue" -> {}
+  [] s = "UC006_Cli_MissingProjectArg" -> {}
+  [] s = "UC007_Cli_MultipleProjects" -> {}
+  [] s = "UC008_Hhp_StandardCompile" -> {"Contents:toc.hhc", "DefaultTopic:index.html", "Index:index.hhk", "Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC009_Hhp_OutRelativeOverride" -> {"Output:project/dist/output.chm", "Title:Project Title"}
+  [] s = "UC010_Hhp_OutAbsoluteOverride" -> {"Output:absolute/output.chm", "Title:Project Title"}
+  [] s = "UC011_Hhp_CompiledFileOmitted" -> {"Output:project/manual.chm", "Title:manual"}
+  [] s = "UC012_Hhp_ProjectMissing" -> {}
+  [] s = "UC013_Hhp_CommentsIgnored" -> {"Hhp:CommentsIgnored", "Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC014_Hhp_CaseInsensitiveNames" -> {"Hhp:CaseInsensitive", "Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC015_Hhp_QuotedValues" -> {"Hhp:QuotedValues", "Output:project/help.chm", "Title:Quoted Title"}
+  [] s = "UC016_Hhp_DuplicateOptionLastWins" -> {"Hhp:LastOptionWins", "Output:project/help.chm", "Title:New Title"}
+  [] s = "UC017_Hhp_PreSectionLinesIgnored" -> {"Hhp:PreSectionIgnored", "Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC018_Files_RequiredFiles" -> {"DefaultTopic:topics/start.html", "Output:project/help.chm"}
+  [] s = "UC019_Files_DefaultTopicFirstHtml" -> {"DefaultTopic:index.html", "Output:project/help.chm"}
+  [] s = "UC020_Files_GenerateContents" -> {"Contents:Table of Contents.hhc", "ContentsGenerated:true", "Output:project/help.chm"}
+  [] s = "UC021_Files_MissingRequiredFails" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC022_Files_AllowMissing" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC023_Files_DuplicateSameFile" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC024_Files_DuplicateConflict" -> {"KeptSource:a/index.html", "Output:project/help.chm"}
+  [] s = "UC025_Files_Verbose" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC026_Links_HtmlHrefSrc" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC027_Links_CssImportUrl" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC028_Links_LocalParam" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC029_Links_NoLinkScan" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC030_Links_ExternalIgnored" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC031_Links_QueryFragment" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC032_Links_EntityPercent" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC033_Links_RelativeBase" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC034_Links_RootRelative" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC035_Links_NonScannable" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC036_Links_OptionalMissing" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC037_Paths_NormalArchivePath" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC038_Paths_NormalizeDots" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC039_Paths_OutsideRelativeLink" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC040_Paths_FlatNames" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC041_Paths_FlatRewrite" -> {"LinksRewrittenForFlat:true", "Output:project/help.chm"}
+  [] s = "UC042_Encoding_BomText" -> {"Encoding:BOM", "Output:project/help.chm"}
+  [] s = "UC043_Encoding_StrictUtf8" -> {"Encoding:UTF8", "Output:project/help.chm"}
+  [] s = "UC044_Encoding_LcidAnsi" -> {"DBCS:true", "LCID:0x0411", "Output:project/help.chm", "TextEncoding:CP932"}
+  [] s = "UC045_Encoding_DeclaredLanguageRead" -> {"LCID:0x0411", "Output:project/help.chm", "TextEncoding:CP932"}
+  [] s = "UC046_Encoding_CurrentCultureFallback" -> {"LCID:CurrentCulture", "Output:project/help.chm", "TextEncoding:AnsiFallback"}
+  [] s = "UC047_Encoding_DbcsLanguages" -> {"DBCS:true", "Output:project/help.chm"}
+  [] s = "UC048_Metadata_CoreFields" -> {"Contents:toc.hhc", "DefaultTopic:index.html", "Index:index.hhk", "Output:project/help.chm", "Title:Product Help"}
+  [] s = "UC049_Metadata_TitleOmitted" -> {"Output:project/help.chm", "Title:manual"}
+  [] s = "UC050_Metadata_DefaultWindowMain" -> {"Output:project/help.chm", "Window:main"}
+  [] s = "UC051_Metadata_WindowAndFont" -> {"Font:MS UI Gothic, 9", "Output:project/help.chm", "Window:custom"}
+  [] s = "UC052_Chm_InternalStreams" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC053_Chm_SmallPmglOnly" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC054_Chm_LargePmgi" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC055_Chm_Uncompressed" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC056_Unsupported_FullTextSearch" -> {"FullTextSearch:false", "Output:project/help.chm"}
+  [] s = "UC057_Unsupported_BinaryToc" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC058_Unsupported_BinaryIndex" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC059_Unsupported_MergeFiles" -> {"MergeFiles:metadata-only", "Output:project/help.chm"}
+  [] s = "UC060_Unsupported_WindowsSection" -> {"Output:project/help.chm", "Windows:generated-default"}
+  [] s = "UC061_Error_OutputUnwritable" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC062_Error_DirectoryEntryTooLarge" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC063_Error_DirectoryTooLarge" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC064_Cli_HelpShortCircuits" -> {}
+  [] s = "UC065_Cli_VersionShortCircuits" -> {}
+  [] s = "UC066_Cli_RepeatedOutLastWins" -> {"Hhp:LastOptionWins", "Output:project/final.chm", "Title:Project Title"}
+  [] s = "UC067_Cli_OutBeforeProject" -> {"Output:project/dist/output.chm", "Title:Project Title"}
+  [] s = "UC068_Hhp_BlankCompiledFileIgnored" -> {"Hhp:BlankOptionIgnored", "Output:project/manual.chm", "Title:manual"}
+  [] s = "UC069_Hhp_UnbalancedQuoteLiteral" -> {"Hhp:UnbalancedQuoteLiteral", "Output:project/help.chm", "Title:'Open"}
+  [] s = "UC070_Hhp_TruthyFlatOn" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC071_Files_DotPathIgnored" -> {"Contents:Table of Contents.hhc", "ContentsGenerated:true", "Output:project/help.chm"}
+  [] s = "UC072_Files_AbsoluteProjectFileNameOnly" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC073_Files_OutsideRelativeProjectPath" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC074_Links_EmptyAndFragmentIgnored" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC075_Links_UncIgnored" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC076_Links_MalformedPercentKept" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC077_Links_ReadErrorAbsorbed" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC078_Encoding_InvalidUtf8Fallback" -> {"Encoding:InvalidUtf8Fallback", "Output:project/help.chm", "TextEncoding:AnsiFallback"}
+  [] s = "UC079_Encoding_LanguageHexWithoutPrefix" -> {"DBCS:true", "LCID:0x0411-no-prefix", "Output:project/help.chm", "TextEncoding:CP932"}
+  [] s = "UC080_Metadata_NoDefaultTopicWhenNoHtml" -> {"Contents:Table of Contents.hhc", "ContentsGenerated:true", "Output:project/help.chm"}
+  [] s = "UC081_Metadata_FlatOptionArchivePaths" -> {"Contents:toc.hhc", "Index:index.hhk", "Output:project/help.chm"}
+  [] s = "UC082_Chm_StringTableDeduplicates" -> {"Output:project/help.chm", "StringTable:Deduplicated", "Title:Project Title", "Window:main"}
+  [] s = "UC083_Error_CollectInputReadFailure" -> {}
+  [] s = "UC084_Error_WriterInputReadFailure" -> {"Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC085_Error_LockedOutputPreserved" -> {"ExistingOutput:Preserved", "Output:project/help.chm", "Title:Project Title"}
+  [] s = "UC086_Error_MetadataEntryTooLarge" -> {"Output:project/help.chm", "Title:Oversized"}
+  [] s = "UC087_Files_GeneratedContentsEscapesHtml" -> {"Contents:Table of Contents.hhc", "ContentsGenerated:true", "GeneratedContentsEscaped:true", "Output:project/help.chm"}
+  [] OTHER -> {}
+
+ImplWriterResult(s) ==
+  CASE
+    s = "UC001_Cli_NoArgsHelp" -> {"Skipped"}
+  [] s = "UC002_Cli_HelpOptions" -> {"Skipped"}
+  [] s = "UC003_Cli_Version" -> {"Skipped"}
+  [] s = "UC004_Cli_UnknownOption" -> {"Skipped"}
+  [] s = "UC005_Cli_OutMissingValue" -> {"Skipped"}
+  [] s = "UC006_Cli_MissingProjectArg" -> {"Skipped"}
+  [] s = "UC007_Cli_MultipleProjects" -> {"Skipped"}
+  [] s = "UC008_Hhp_StandardCompile" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC009_Hhp_OutRelativeOverride" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC010_Hhp_OutAbsoluteOverride" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC011_Hhp_CompiledFileOmitted" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC012_Hhp_ProjectMissing" -> {"Skipped"}
+  [] s = "UC013_Hhp_CommentsIgnored" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC014_Hhp_CaseInsensitiveNames" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC015_Hhp_QuotedValues" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC016_Hhp_DuplicateOptionLastWins" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC017_Hhp_PreSectionLinesIgnored" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC018_Files_RequiredFiles" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC019_Files_DefaultTopicFirstHtml" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC020_Files_GenerateContents" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC021_Files_MissingRequiredFails" -> {"Skipped"}
+  [] s = "UC022_Files_AllowMissing" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC023_Files_DuplicateSameFile" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC024_Files_DuplicateConflict" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC025_Files_Verbose" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC026_Links_HtmlHrefSrc" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC027_Links_CssImportUrl" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC028_Links_LocalParam" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC029_Links_NoLinkScan" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC030_Links_ExternalIgnored" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC031_Links_QueryFragment" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC032_Links_EntityPercent" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC033_Links_RelativeBase" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC034_Links_RootRelative" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC035_Links_NonScannable" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC036_Links_OptionalMissing" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC037_Paths_NormalArchivePath" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC038_Paths_NormalizeDots" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC039_Paths_OutsideRelativeLink" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC040_Paths_FlatNames" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC041_Paths_FlatRewrite" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC042_Encoding_BomText" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC043_Encoding_StrictUtf8" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC044_Encoding_LcidAnsi" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC045_Encoding_DeclaredLanguageRead" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC046_Encoding_CurrentCultureFallback" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC047_Encoding_DbcsLanguages" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC048_Metadata_CoreFields" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC049_Metadata_TitleOmitted" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC050_Metadata_DefaultWindowMain" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC051_Metadata_WindowAndFont" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC052_Chm_InternalStreams" -> {"InternalStreams", "Itbits", "NameList", "PMGL", "Strings", "System", "Uncompressed", "Windows"}
+  [] s = "UC053_Chm_SmallPmglOnly" -> {"InternalStreams", "NoPMGI", "PMGL", "Uncompressed"}
+  [] s = "UC054_Chm_LargePmgi" -> {"InternalStreams", "PMGI", "PMGL", "Uncompressed"}
+  [] s = "UC055_Chm_Uncompressed" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC056_Unsupported_FullTextSearch" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC057_Unsupported_BinaryToc" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC058_Unsupported_BinaryIndex" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC059_Unsupported_MergeFiles" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC060_Unsupported_WindowsSection" -> {"InternalStreams", "PMGL", "Uncompressed", "Windows"}
+  [] s = "UC061_Error_OutputUnwritable" -> {"OutputWriteError", "WriteFailed"}
+  [] s = "UC062_Error_DirectoryEntryTooLarge" -> {"DirectoryEntryTooLarge", "WriteFailed"}
+  [] s = "UC063_Error_DirectoryTooLarge" -> {"DirectoryTooLarge", "WriteFailed"}
+  [] s = "UC064_Cli_HelpShortCircuits" -> {"Skipped"}
+  [] s = "UC065_Cli_VersionShortCircuits" -> {"Skipped"}
+  [] s = "UC066_Cli_RepeatedOutLastWins" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC067_Cli_OutBeforeProject" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC068_Hhp_BlankCompiledFileIgnored" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC069_Hhp_UnbalancedQuoteLiteral" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC070_Hhp_TruthyFlatOn" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC071_Files_DotPathIgnored" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC072_Files_AbsoluteProjectFileNameOnly" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC073_Files_OutsideRelativeProjectPath" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC074_Links_EmptyAndFragmentIgnored" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC075_Links_UncIgnored" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC076_Links_MalformedPercentKept" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC077_Links_ReadErrorAbsorbed" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC078_Encoding_InvalidUtf8Fallback" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC079_Encoding_LanguageHexWithoutPrefix" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC080_Metadata_NoDefaultTopicWhenNoHtml" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC081_Metadata_FlatOptionArchivePaths" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] s = "UC082_Chm_StringTableDeduplicates" -> {"InternalStreams", "PMGL", "StringTableDeduplicated", "Uncompressed"}
+  [] s = "UC083_Error_CollectInputReadFailure" -> {"Skipped"}
+  [] s = "UC084_Error_WriterInputReadFailure" -> {"InputReadError", "WriteFailed"}
+  [] s = "UC085_Error_LockedOutputPreserved" -> {"ExistingOutputPreserved", "OutputCreateLocked", "WriteFailed"}
+  [] s = "UC086_Error_MetadataEntryTooLarge" -> {"MetadataEntryTooLarge", "WriteFailed"}
+  [] s = "UC087_Files_GeneratedContentsEscapesHtml" -> {"InternalStreams", "PMGL", "Uncompressed"}
+  [] OTHER -> {}
+
+ImplStdout(s) ==
+  CASE
+    s = "UC001_Cli_NoArgsHelp" -> {"Banner", "Options", "Usage"}
+  [] s = "UC002_Cli_HelpOptions" -> {"Banner", "Options", "Usage"}
+  [] s = "UC003_Cli_Version" -> {"Banner", "Version"}
+  [] s = "UC004_Cli_UnknownOption" -> {}
+  [] s = "UC005_Cli_OutMissingValue" -> {}
+  [] s = "UC006_Cli_MissingProjectArg" -> {}
+  [] s = "UC007_Cli_MultipleProjects" -> {}
+  [] s = "UC008_Hhp_StandardCompile" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC009_Hhp_OutRelativeOverride" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC010_Hhp_OutAbsoluteOverride" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC011_Hhp_CompiledFileOmitted" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC012_Hhp_ProjectMissing" -> {}
+  [] s = "UC013_Hhp_CommentsIgnored" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC014_Hhp_CaseInsensitiveNames" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC015_Hhp_QuotedValues" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC016_Hhp_DuplicateOptionLastWins" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC017_Hhp_PreSectionLinesIgnored" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC018_Files_RequiredFiles" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC019_Files_DefaultTopicFirstHtml" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC020_Files_GenerateContents" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC021_Files_MissingRequiredFails" -> {}
+  [] s = "UC022_Files_AllowMissing" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC023_Files_DuplicateSameFile" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC024_Files_DuplicateConflict" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC025_Files_Verbose" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC026_Links_HtmlHrefSrc" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC027_Links_CssImportUrl" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC028_Links_LocalParam" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC029_Links_NoLinkScan" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC030_Links_ExternalIgnored" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC031_Links_QueryFragment" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC032_Links_EntityPercent" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC033_Links_RelativeBase" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC034_Links_RootRelative" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC035_Links_NonScannable" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC036_Links_OptionalMissing" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC037_Paths_NormalArchivePath" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC038_Paths_NormalizeDots" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC039_Paths_OutsideRelativeLink" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC040_Paths_FlatNames" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC041_Paths_FlatRewrite" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC042_Encoding_BomText" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC043_Encoding_StrictUtf8" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC044_Encoding_LcidAnsi" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC045_Encoding_DeclaredLanguageRead" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC046_Encoding_CurrentCultureFallback" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC047_Encoding_DbcsLanguages" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC048_Metadata_CoreFields" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC049_Metadata_TitleOmitted" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC050_Metadata_DefaultWindowMain" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC051_Metadata_WindowAndFont" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC052_Chm_InternalStreams" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC053_Chm_SmallPmglOnly" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC054_Chm_LargePmgi" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC055_Chm_Uncompressed" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC056_Unsupported_FullTextSearch" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC057_Unsupported_BinaryToc" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC058_Unsupported_BinaryIndex" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC059_Unsupported_MergeFiles" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC060_Unsupported_WindowsSection" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC061_Error_OutputUnwritable" -> {}
+  [] s = "UC062_Error_DirectoryEntryTooLarge" -> {}
+  [] s = "UC063_Error_DirectoryTooLarge" -> {}
+  [] s = "UC064_Cli_HelpShortCircuits" -> {"Banner", "Options", "Usage"}
+  [] s = "UC065_Cli_VersionShortCircuits" -> {"Banner", "Version"}
+  [] s = "UC066_Cli_RepeatedOutLastWins" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC067_Cli_OutBeforeProject" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC068_Hhp_BlankCompiledFileIgnored" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC069_Hhp_UnbalancedQuoteLiteral" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC070_Hhp_TruthyFlatOn" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC071_Files_DotPathIgnored" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC072_Files_AbsoluteProjectFileNameOnly" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC073_Files_OutsideRelativeProjectPath" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC074_Links_EmptyAndFragmentIgnored" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC075_Links_UncIgnored" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC076_Links_MalformedPercentKept" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC077_Links_ReadErrorAbsorbed" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC078_Encoding_InvalidUtf8Fallback" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC079_Encoding_LanguageHexWithoutPrefix" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC080_Metadata_NoDefaultTopicWhenNoHtml" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC081_Metadata_FlatOptionArchivePaths" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC082_Chm_StringTableDeduplicates" -> {"Banner", "Compiled", "Files"}
+  [] s = "UC083_Error_CollectInputReadFailure" -> {}
+  [] s = "UC084_Error_WriterInputReadFailure" -> {}
+  [] s = "UC085_Error_LockedOutputPreserved" -> {}
+  [] s = "UC086_Error_MetadataEntryTooLarge" -> {}
+  [] s = "UC087_Files_GeneratedContentsEscapesHtml" -> {"Banner", "Compiled", "Files"}
+  [] OTHER -> {}
+
+ImplStderr(s) ==
+  CASE
+    s = "UC001_Cli_NoArgsHelp" -> {}
+  [] s = "UC002_Cli_HelpOptions" -> {}
+  [] s = "UC003_Cli_Version" -> {}
+  [] s = "UC004_Cli_UnknownOption" -> {"unknown option"}
+  [] s = "UC005_Cli_OutMissingValue" -> {"--out requires a path"}
+  [] s = "UC006_Cli_MissingProjectArg" -> {"missing .hhp project path"}
+  [] s = "UC007_Cli_MultipleProjects" -> {"only one .hhp project"}
+  [] s = "UC008_Hhp_StandardCompile" -> {}
+  [] s = "UC009_Hhp_OutRelativeOverride" -> {}
+  [] s = "UC010_Hhp_OutAbsoluteOverride" -> {}
+  [] s = "UC011_Hhp_CompiledFileOmitted" -> {}
+  [] s = "UC012_Hhp_ProjectMissing" -> {"Project file not found"}
+  [] s = "UC013_Hhp_CommentsIgnored" -> {}
+  [] s = "UC014_Hhp_CaseInsensitiveNames" -> {}
+  [] s = "UC015_Hhp_QuotedValues" -> {}
+  [] s = "UC016_Hhp_DuplicateOptionLastWins" -> {}
+  [] s = "UC017_Hhp_PreSectionLinesIgnored" -> {}
+  [] s = "UC018_Files_RequiredFiles" -> {}
+  [] s = "UC019_Files_DefaultTopicFirstHtml" -> {}
+  [] s = "UC020_Files_GenerateContents" -> {}
+  [] s = "UC021_Files_MissingRequiredFails" -> {"Missing required files"}
+  [] s = "UC022_Files_AllowMissing" -> {}
+  [] s = "UC023_Files_DuplicateSameFile" -> {}
+  [] s = "UC024_Files_DuplicateConflict" -> {}
+  [] s = "UC025_Files_Verbose" -> {"add log"}
+  [] s = "UC026_Links_HtmlHrefSrc" -> {}
+  [] s = "UC027_Links_CssImportUrl" -> {}
+  [] s = "UC028_Links_LocalParam" -> {}
+  [] s = "UC029_Links_NoLinkScan" -> {}
+  [] s = "UC030_Links_ExternalIgnored" -> {}
+  [] s = "UC031_Links_QueryFragment" -> {}
+  [] s = "UC032_Links_EntityPercent" -> {}
+  [] s = "UC033_Links_RelativeBase" -> {}
+  [] s = "UC034_Links_RootRelative" -> {}
+  [] s = "UC035_Links_NonScannable" -> {}
+  [] s = "UC036_Links_OptionalMissing" -> {}
+  [] s = "UC037_Paths_NormalArchivePath" -> {}
+  [] s = "UC038_Paths_NormalizeDots" -> {}
+  [] s = "UC039_Paths_OutsideRelativeLink" -> {}
+  [] s = "UC040_Paths_FlatNames" -> {}
+  [] s = "UC041_Paths_FlatRewrite" -> {}
+  [] s = "UC042_Encoding_BomText" -> {}
+  [] s = "UC043_Encoding_StrictUtf8" -> {}
+  [] s = "UC044_Encoding_LcidAnsi" -> {}
+  [] s = "UC045_Encoding_DeclaredLanguageRead" -> {}
+  [] s = "UC046_Encoding_CurrentCultureFallback" -> {}
+  [] s = "UC047_Encoding_DbcsLanguages" -> {}
+  [] s = "UC048_Metadata_CoreFields" -> {}
+  [] s = "UC049_Metadata_TitleOmitted" -> {}
+  [] s = "UC050_Metadata_DefaultWindowMain" -> {}
+  [] s = "UC051_Metadata_WindowAndFont" -> {}
+  [] s = "UC052_Chm_InternalStreams" -> {}
+  [] s = "UC053_Chm_SmallPmglOnly" -> {}
+  [] s = "UC054_Chm_LargePmgi" -> {}
+  [] s = "UC055_Chm_Uncompressed" -> {}
+  [] s = "UC056_Unsupported_FullTextSearch" -> {}
+  [] s = "UC057_Unsupported_BinaryToc" -> {}
+  [] s = "UC058_Unsupported_BinaryIndex" -> {}
+  [] s = "UC059_Unsupported_MergeFiles" -> {}
+  [] s = "UC060_Unsupported_WindowsSection" -> {}
+  [] s = "UC061_Error_OutputUnwritable" -> {"error"}
+  [] s = "UC062_Error_DirectoryEntryTooLarge" -> {"Directory entry is too large"}
+  [] s = "UC063_Error_DirectoryTooLarge" -> {"directory is too large for this compiler version"}
+  [] s = "UC064_Cli_HelpShortCircuits" -> {}
+  [] s = "UC065_Cli_VersionShortCircuits" -> {}
+  [] s = "UC066_Cli_RepeatedOutLastWins" -> {}
+  [] s = "UC067_Cli_OutBeforeProject" -> {}
+  [] s = "UC068_Hhp_BlankCompiledFileIgnored" -> {}
+  [] s = "UC069_Hhp_UnbalancedQuoteLiteral" -> {}
+  [] s = "UC070_Hhp_TruthyFlatOn" -> {}
+  [] s = "UC071_Files_DotPathIgnored" -> {}
+  [] s = "UC072_Files_AbsoluteProjectFileNameOnly" -> {}
+  [] s = "UC073_Files_OutsideRelativeProjectPath" -> {}
+  [] s = "UC074_Links_EmptyAndFragmentIgnored" -> {}
+  [] s = "UC075_Links_UncIgnored" -> {}
+  [] s = "UC076_Links_MalformedPercentKept" -> {}
+  [] s = "UC077_Links_ReadErrorAbsorbed" -> {}
+  [] s = "UC078_Encoding_InvalidUtf8Fallback" -> {}
+  [] s = "UC079_Encoding_LanguageHexWithoutPrefix" -> {}
+  [] s = "UC080_Metadata_NoDefaultTopicWhenNoHtml" -> {}
+  [] s = "UC081_Metadata_FlatOptionArchivePaths" -> {}
+  [] s = "UC082_Chm_StringTableDeduplicates" -> {}
+  [] s = "UC083_Error_CollectInputReadFailure" -> {"error", "input file read error"}
+  [] s = "UC084_Error_WriterInputReadFailure" -> {"error", "input file read error"}
+  [] s = "UC085_Error_LockedOutputPreserved" -> {"error", "output file locked"}
+  [] s = "UC086_Error_MetadataEntryTooLarge" -> {"#SYSTEM entry is too large", "error"}
+  [] s = "UC087_Files_GeneratedContentsEscapesHtml" -> {}
+  [] OTHER -> {}
+
+ImplWarnings(s) ==
+  CASE
+    s = "UC001_Cli_NoArgsHelp" -> {}
+  [] s = "UC002_Cli_HelpOptions" -> {}
+  [] s = "UC003_Cli_Version" -> {}
+  [] s = "UC004_Cli_UnknownOption" -> {}
+  [] s = "UC005_Cli_OutMissingValue" -> {}
+  [] s = "UC006_Cli_MissingProjectArg" -> {}
+  [] s = "UC007_Cli_MultipleProjects" -> {}
+  [] s = "UC008_Hhp_StandardCompile" -> {}
+  [] s = "UC009_Hhp_OutRelativeOverride" -> {}
+  [] s = "UC010_Hhp_OutAbsoluteOverride" -> {}
+  [] s = "UC011_Hhp_CompiledFileOmitted" -> {}
+  [] s = "UC012_Hhp_ProjectMissing" -> {}
+  [] s = "UC013_Hhp_CommentsIgnored" -> {}
+  [] s = "UC014_Hhp_CaseInsensitiveNames" -> {}
+  [] s = "UC015_Hhp_QuotedValues" -> {}
+  [] s = "UC016_Hhp_DuplicateOptionLastWins" -> {}
+  [] s = "UC017_Hhp_PreSectionLinesIgnored" -> {}
+  [] s = "UC018_Files_RequiredFiles" -> {}
+  [] s = "UC019_Files_DefaultTopicFirstHtml" -> {}
+  [] s = "UC020_Files_GenerateContents" -> {"generated toc"}
+  [] s = "UC021_Files_MissingRequiredFails" -> {"file not found"}
+  [] s = "UC022_Files_AllowMissing" -> {"file not found"}
+  [] s = "UC023_Files_DuplicateSameFile" -> {}
+  [] s = "UC024_Files_DuplicateConflict" -> {"duplicate archive path"}
+  [] s = "UC025_Files_Verbose" -> {}
+  [] s = "UC026_Links_HtmlHrefSrc" -> {}
+  [] s = "UC027_Links_CssImportUrl" -> {}
+  [] s = "UC028_Links_LocalParam" -> {}
+  [] s = "UC029_Links_NoLinkScan" -> {}
+  [] s = "UC030_Links_ExternalIgnored" -> {}
+  [] s = "UC031_Links_QueryFragment" -> {}
+  [] s = "UC032_Links_EntityPercent" -> {}
+  [] s = "UC033_Links_RelativeBase" -> {}
+  [] s = "UC034_Links_RootRelative" -> {}
+  [] s = "UC035_Links_NonScannable" -> {}
+  [] s = "UC036_Links_OptionalMissing" -> {"file not found"}
+  [] s = "UC037_Paths_NormalArchivePath" -> {}
+  [] s = "UC038_Paths_NormalizeDots" -> {}
+  [] s = "UC039_Paths_OutsideRelativeLink" -> {}
+  [] s = "UC040_Paths_FlatNames" -> {}
+  [] s = "UC041_Paths_FlatRewrite" -> {}
+  [] s = "UC042_Encoding_BomText" -> {}
+  [] s = "UC043_Encoding_StrictUtf8" -> {}
+  [] s = "UC044_Encoding_LcidAnsi" -> {}
+  [] s = "UC045_Encoding_DeclaredLanguageRead" -> {}
+  [] s = "UC046_Encoding_CurrentCultureFallback" -> {}
+  [] s = "UC047_Encoding_DbcsLanguages" -> {}
+  [] s = "UC048_Metadata_CoreFields" -> {}
+  [] s = "UC049_Metadata_TitleOmitted" -> {}
+  [] s = "UC050_Metadata_DefaultWindowMain" -> {}
+  [] s = "UC051_Metadata_WindowAndFont" -> {}
+  [] s = "UC052_Chm_InternalStreams" -> {}
+  [] s = "UC053_Chm_SmallPmglOnly" -> {}
+  [] s = "UC054_Chm_LargePmgi" -> {}
+  [] s = "UC055_Chm_Uncompressed" -> {}
+  [] s = "UC056_Unsupported_FullTextSearch" -> {"Full-text search index generation is not implemented"}
+  [] s = "UC057_Unsupported_BinaryToc" -> {"Binary TOC is not implemented"}
+  [] s = "UC058_Unsupported_BinaryIndex" -> {"Binary Index is not implemented"}
+  [] s = "UC059_Unsupported_MergeFiles" -> {"MERGE FILES is not generated"}
+  [] s = "UC060_Unsupported_WindowsSection" -> {"WINDOWS custom settings are not parsed"}
+  [] s = "UC061_Error_OutputUnwritable" -> {}
+  [] s = "UC062_Error_DirectoryEntryTooLarge" -> {}
+  [] s = "UC063_Error_DirectoryTooLarge" -> {}
+  [] s = "UC064_Cli_HelpShortCircuits" -> {}
+  [] s = "UC065_Cli_VersionShortCircuits" -> {}
+  [] s = "UC066_Cli_RepeatedOutLastWins" -> {}
+  [] s = "UC067_Cli_OutBeforeProject" -> {}
+  [] s = "UC068_Hhp_BlankCompiledFileIgnored" -> {}
+  [] s = "UC069_Hhp_UnbalancedQuoteLiteral" -> {}
+  [] s = "UC070_Hhp_TruthyFlatOn" -> {}
+  [] s = "UC071_Files_DotPathIgnored" -> {"generated toc"}
+  [] s = "UC072_Files_AbsoluteProjectFileNameOnly" -> {}
+  [] s = "UC073_Files_OutsideRelativeProjectPath" -> {}
+  [] s = "UC074_Links_EmptyAndFragmentIgnored" -> {}
+  [] s = "UC075_Links_UncIgnored" -> {}
+  [] s = "UC076_Links_MalformedPercentKept" -> {}
+  [] s = "UC077_Links_ReadErrorAbsorbed" -> {}
+  [] s = "UC078_Encoding_InvalidUtf8Fallback" -> {}
+  [] s = "UC079_Encoding_LanguageHexWithoutPrefix" -> {}
+  [] s = "UC080_Metadata_NoDefaultTopicWhenNoHtml" -> {"generated toc"}
+  [] s = "UC081_Metadata_FlatOptionArchivePaths" -> {}
+  [] s = "UC082_Chm_StringTableDeduplicates" -> {}
+  [] s = "UC083_Error_CollectInputReadFailure" -> {}
+  [] s = "UC084_Error_WriterInputReadFailure" -> {}
+  [] s = "UC085_Error_LockedOutputPreserved" -> {}
+  [] s = "UC086_Error_MetadataEntryTooLarge" -> {}
+  [] s = "UC087_Files_GeneratedContentsEscapesHtml" -> {"generated toc"}
+  [] OTHER -> {}
+
+ImplExitCode(s) ==
+  CASE
+    s = "UC001_Cli_NoArgsHelp" -> 0
+  [] s = "UC002_Cli_HelpOptions" -> 0
+  [] s = "UC003_Cli_Version" -> 0
+  [] s = "UC004_Cli_UnknownOption" -> 2
+  [] s = "UC005_Cli_OutMissingValue" -> 2
+  [] s = "UC006_Cli_MissingProjectArg" -> 2
+  [] s = "UC007_Cli_MultipleProjects" -> 2
+  [] s = "UC008_Hhp_StandardCompile" -> 0
+  [] s = "UC009_Hhp_OutRelativeOverride" -> 0
+  [] s = "UC010_Hhp_OutAbsoluteOverride" -> 0
+  [] s = "UC011_Hhp_CompiledFileOmitted" -> 0
+  [] s = "UC012_Hhp_ProjectMissing" -> 1
+  [] s = "UC013_Hhp_CommentsIgnored" -> 0
+  [] s = "UC014_Hhp_CaseInsensitiveNames" -> 0
+  [] s = "UC015_Hhp_QuotedValues" -> 0
+  [] s = "UC016_Hhp_DuplicateOptionLastWins" -> 0
+  [] s = "UC017_Hhp_PreSectionLinesIgnored" -> 0
+  [] s = "UC018_Files_RequiredFiles" -> 0
+  [] s = "UC019_Files_DefaultTopicFirstHtml" -> 0
+  [] s = "UC020_Files_GenerateContents" -> 0
+  [] s = "UC021_Files_MissingRequiredFails" -> 1
+  [] s = "UC022_Files_AllowMissing" -> 0
+  [] s = "UC023_Files_DuplicateSameFile" -> 0
+  [] s = "UC024_Files_DuplicateConflict" -> 0
+  [] s = "UC025_Files_Verbose" -> 0
+  [] s = "UC026_Links_HtmlHrefSrc" -> 0
+  [] s = "UC027_Links_CssImportUrl" -> 0
+  [] s = "UC028_Links_LocalParam" -> 0
+  [] s = "UC029_Links_NoLinkScan" -> 0
+  [] s = "UC030_Links_ExternalIgnored" -> 0
+  [] s = "UC031_Links_QueryFragment" -> 0
+  [] s = "UC032_Links_EntityPercent" -> 0
+  [] s = "UC033_Links_RelativeBase" -> 0
+  [] s = "UC034_Links_RootRelative" -> 0
+  [] s = "UC035_Links_NonScannable" -> 0
+  [] s = "UC036_Links_OptionalMissing" -> 0
+  [] s = "UC037_Paths_NormalArchivePath" -> 0
+  [] s = "UC038_Paths_NormalizeDots" -> 0
+  [] s = "UC039_Paths_OutsideRelativeLink" -> 0
+  [] s = "UC040_Paths_FlatNames" -> 0
+  [] s = "UC041_Paths_FlatRewrite" -> 0
+  [] s = "UC042_Encoding_BomText" -> 0
+  [] s = "UC043_Encoding_StrictUtf8" -> 0
+  [] s = "UC044_Encoding_LcidAnsi" -> 0
+  [] s = "UC045_Encoding_DeclaredLanguageRead" -> 0
+  [] s = "UC046_Encoding_CurrentCultureFallback" -> 0
+  [] s = "UC047_Encoding_DbcsLanguages" -> 0
+  [] s = "UC048_Metadata_CoreFields" -> 0
+  [] s = "UC049_Metadata_TitleOmitted" -> 0
+  [] s = "UC050_Metadata_DefaultWindowMain" -> 0
+  [] s = "UC051_Metadata_WindowAndFont" -> 0
+  [] s = "UC052_Chm_InternalStreams" -> 0
+  [] s = "UC053_Chm_SmallPmglOnly" -> 0
+  [] s = "UC054_Chm_LargePmgi" -> 0
+  [] s = "UC055_Chm_Uncompressed" -> 0
+  [] s = "UC056_Unsupported_FullTextSearch" -> 0
+  [] s = "UC057_Unsupported_BinaryToc" -> 0
+  [] s = "UC058_Unsupported_BinaryIndex" -> 0
+  [] s = "UC059_Unsupported_MergeFiles" -> 0
+  [] s = "UC060_Unsupported_WindowsSection" -> 0
+  [] s = "UC061_Error_OutputUnwritable" -> 1
+  [] s = "UC062_Error_DirectoryEntryTooLarge" -> 1
+  [] s = "UC063_Error_DirectoryTooLarge" -> 1
+  [] s = "UC064_Cli_HelpShortCircuits" -> 0
+  [] s = "UC065_Cli_VersionShortCircuits" -> 0
+  [] s = "UC066_Cli_RepeatedOutLastWins" -> 0
+  [] s = "UC067_Cli_OutBeforeProject" -> 0
+  [] s = "UC068_Hhp_BlankCompiledFileIgnored" -> 0
+  [] s = "UC069_Hhp_UnbalancedQuoteLiteral" -> 0
+  [] s = "UC070_Hhp_TruthyFlatOn" -> 0
+  [] s = "UC071_Files_DotPathIgnored" -> 0
+  [] s = "UC072_Files_AbsoluteProjectFileNameOnly" -> 0
+  [] s = "UC073_Files_OutsideRelativeProjectPath" -> 0
+  [] s = "UC074_Links_EmptyAndFragmentIgnored" -> 0
+  [] s = "UC075_Links_UncIgnored" -> 0
+  [] s = "UC076_Links_MalformedPercentKept" -> 0
+  [] s = "UC077_Links_ReadErrorAbsorbed" -> 0
+  [] s = "UC078_Encoding_InvalidUtf8Fallback" -> 0
+  [] s = "UC079_Encoding_LanguageHexWithoutPrefix" -> 0
+  [] s = "UC080_Metadata_NoDefaultTopicWhenNoHtml" -> 0
+  [] s = "UC081_Metadata_FlatOptionArchivePaths" -> 0
+  [] s = "UC082_Chm_StringTableDeduplicates" -> 0
+  [] s = "UC083_Error_CollectInputReadFailure" -> 1
+  [] s = "UC084_Error_WriterInputReadFailure" -> 1
+  [] s = "UC085_Error_LockedOutputPreserved" -> 1
+  [] s = "UC086_Error_MetadataEntryTooLarge" -> 1
+  [] s = "UC087_Files_GeneratedContentsEscapesHtml" -> 0
+  [] OTHER -> -1
+
+ImplChmCreated(s) ==
+  CASE
+    s = "UC001_Cli_NoArgsHelp" -> FALSE
+  [] s = "UC002_Cli_HelpOptions" -> FALSE
+  [] s = "UC003_Cli_Version" -> FALSE
+  [] s = "UC004_Cli_UnknownOption" -> FALSE
+  [] s = "UC005_Cli_OutMissingValue" -> FALSE
+  [] s = "UC006_Cli_MissingProjectArg" -> FALSE
+  [] s = "UC007_Cli_MultipleProjects" -> FALSE
+  [] s = "UC008_Hhp_StandardCompile" -> TRUE
+  [] s = "UC009_Hhp_OutRelativeOverride" -> TRUE
+  [] s = "UC010_Hhp_OutAbsoluteOverride" -> TRUE
+  [] s = "UC011_Hhp_CompiledFileOmitted" -> TRUE
+  [] s = "UC012_Hhp_ProjectMissing" -> FALSE
+  [] s = "UC013_Hhp_CommentsIgnored" -> TRUE
+  [] s = "UC014_Hhp_CaseInsensitiveNames" -> TRUE
+  [] s = "UC015_Hhp_QuotedValues" -> TRUE
+  [] s = "UC016_Hhp_DuplicateOptionLastWins" -> TRUE
+  [] s = "UC017_Hhp_PreSectionLinesIgnored" -> TRUE
+  [] s = "UC018_Files_RequiredFiles" -> TRUE
+  [] s = "UC019_Files_DefaultTopicFirstHtml" -> TRUE
+  [] s = "UC020_Files_GenerateContents" -> TRUE
+  [] s = "UC021_Files_MissingRequiredFails" -> FALSE
+  [] s = "UC022_Files_AllowMissing" -> TRUE
+  [] s = "UC023_Files_DuplicateSameFile" -> TRUE
+  [] s = "UC024_Files_DuplicateConflict" -> TRUE
+  [] s = "UC025_Files_Verbose" -> TRUE
+  [] s = "UC026_Links_HtmlHrefSrc" -> TRUE
+  [] s = "UC027_Links_CssImportUrl" -> TRUE
+  [] s = "UC028_Links_LocalParam" -> TRUE
+  [] s = "UC029_Links_NoLinkScan" -> TRUE
+  [] s = "UC030_Links_ExternalIgnored" -> TRUE
+  [] s = "UC031_Links_QueryFragment" -> TRUE
+  [] s = "UC032_Links_EntityPercent" -> TRUE
+  [] s = "UC033_Links_RelativeBase" -> TRUE
+  [] s = "UC034_Links_RootRelative" -> TRUE
+  [] s = "UC035_Links_NonScannable" -> TRUE
+  [] s = "UC036_Links_OptionalMissing" -> TRUE
+  [] s = "UC037_Paths_NormalArchivePath" -> TRUE
+  [] s = "UC038_Paths_NormalizeDots" -> TRUE
+  [] s = "UC039_Paths_OutsideRelativeLink" -> TRUE
+  [] s = "UC040_Paths_FlatNames" -> TRUE
+  [] s = "UC041_Paths_FlatRewrite" -> TRUE
+  [] s = "UC042_Encoding_BomText" -> TRUE
+  [] s = "UC043_Encoding_StrictUtf8" -> TRUE
+  [] s = "UC044_Encoding_LcidAnsi" -> TRUE
+  [] s = "UC045_Encoding_DeclaredLanguageRead" -> TRUE
+  [] s = "UC046_Encoding_CurrentCultureFallback" -> TRUE
+  [] s = "UC047_Encoding_DbcsLanguages" -> TRUE
+  [] s = "UC048_Metadata_CoreFields" -> TRUE
+  [] s = "UC049_Metadata_TitleOmitted" -> TRUE
+  [] s = "UC050_Metadata_DefaultWindowMain" -> TRUE
+  [] s = "UC051_Metadata_WindowAndFont" -> TRUE
+  [] s = "UC052_Chm_InternalStreams" -> TRUE
+  [] s = "UC053_Chm_SmallPmglOnly" -> TRUE
+  [] s = "UC054_Chm_LargePmgi" -> TRUE
+  [] s = "UC055_Chm_Uncompressed" -> TRUE
+  [] s = "UC056_Unsupported_FullTextSearch" -> TRUE
+  [] s = "UC057_Unsupported_BinaryToc" -> TRUE
+  [] s = "UC058_Unsupported_BinaryIndex" -> TRUE
+  [] s = "UC059_Unsupported_MergeFiles" -> TRUE
+  [] s = "UC060_Unsupported_WindowsSection" -> TRUE
+  [] s = "UC061_Error_OutputUnwritable" -> FALSE
+  [] s = "UC062_Error_DirectoryEntryTooLarge" -> FALSE
+  [] s = "UC063_Error_DirectoryTooLarge" -> FALSE
+  [] s = "UC064_Cli_HelpShortCircuits" -> FALSE
+  [] s = "UC065_Cli_VersionShortCircuits" -> FALSE
+  [] s = "UC066_Cli_RepeatedOutLastWins" -> TRUE
+  [] s = "UC067_Cli_OutBeforeProject" -> TRUE
+  [] s = "UC068_Hhp_BlankCompiledFileIgnored" -> TRUE
+  [] s = "UC069_Hhp_UnbalancedQuoteLiteral" -> TRUE
+  [] s = "UC070_Hhp_TruthyFlatOn" -> TRUE
+  [] s = "UC071_Files_DotPathIgnored" -> TRUE
+  [] s = "UC072_Files_AbsoluteProjectFileNameOnly" -> TRUE
+  [] s = "UC073_Files_OutsideRelativeProjectPath" -> TRUE
+  [] s = "UC074_Links_EmptyAndFragmentIgnored" -> TRUE
+  [] s = "UC075_Links_UncIgnored" -> TRUE
+  [] s = "UC076_Links_MalformedPercentKept" -> TRUE
+  [] s = "UC077_Links_ReadErrorAbsorbed" -> TRUE
+  [] s = "UC078_Encoding_InvalidUtf8Fallback" -> TRUE
+  [] s = "UC079_Encoding_LanguageHexWithoutPrefix" -> TRUE
+  [] s = "UC080_Metadata_NoDefaultTopicWhenNoHtml" -> TRUE
+  [] s = "UC081_Metadata_FlatOptionArchivePaths" -> TRUE
+  [] s = "UC082_Chm_StringTableDeduplicates" -> TRUE
+  [] s = "UC083_Error_CollectInputReadFailure" -> FALSE
+  [] s = "UC084_Error_WriterInputReadFailure" -> FALSE
+  [] s = "UC085_Error_LockedOutputPreserved" -> FALSE
+  [] s = "UC086_Error_MetadataEntryTooLarge" -> FALSE
+  [] s = "UC087_Files_GeneratedContentsEscapesHtml" -> TRUE
+  [] OTHER -> FALSE
+
+Init ==
+  /\ scenario \in ImplScenarios
+  /\ phase = "Start"
+  /\ cliMode = "Unset"
+  /\ projectState = "NotLoaded"
+  /\ collectionTags = {}
+  /\ archive = {}
+  /\ metadata = {}
+  /\ writerTags = {}
+  /\ stdout = {}
+  /\ stderr = {}
+  /\ warnings = {}
+  /\ exitCode = -1
+  /\ chmCreated = FALSE
+  /\ visited = {"Start"}
+
+ParseCli ==
+  /\ phase = "Start"
+  /\ phase' = "CliParsed"
+  /\ cliMode' = ImplCliParse(scenario)
+  /\ visited' = visited \cup {"CliParsed"}
+  /\ UNCHANGED <<scenario, projectState, collectionTags, archive, metadata, writerTags, stdout, stderr, warnings, exitCode, chmCreated>>
+
+FinishCliTerminal ==
+  /\ phase = "CliParsed"
+  /\ cliMode \in TerminalCliModes
+  /\ phase' = "Done"
+  /\ projectState' = ImplProjectLoad(scenario)
+  /\ collectionTags' = ImplCollectTags(scenario)
+  /\ archive' = ImplCollectArchive(scenario)
+  /\ metadata' = ImplBuildMetadata(scenario)
+  /\ writerTags' = ImplWriterResult(scenario)
+  /\ stdout' = ImplStdout(scenario)
+  /\ stderr' = ImplStderr(scenario)
+  /\ warnings' = ImplWarnings(scenario)
+  /\ exitCode' = ImplExitCode(scenario)
+  /\ chmCreated' = ImplChmCreated(scenario)
+  /\ visited' = visited \cup {"Done"}
+  /\ UNCHANGED <<scenario, cliMode>>
+
+LoadProject ==
+  /\ phase = "CliParsed"
+  /\ cliMode = "Compile"
+  /\ ImplProjectLoad(scenario) = "Loaded"
+  /\ phase' = "ProjectLoaded"
+  /\ projectState' = "Loaded"
+  /\ visited' = visited \cup {"ProjectLoaded"}
+  /\ UNCHANGED <<scenario, cliMode, collectionTags, archive, metadata, writerTags, stdout, stderr, warnings, exitCode, chmCreated>>
+
+ProjectMissing ==
+  /\ phase = "CliParsed"
+  /\ cliMode = "Compile"
+  /\ ImplProjectLoad(scenario) = "Missing"
+  /\ phase' = "Done"
+  /\ projectState' = "Missing"
+  /\ collectionTags' = ImplCollectTags(scenario)
+  /\ archive' = ImplCollectArchive(scenario)
+  /\ metadata' = ImplBuildMetadata(scenario)
+  /\ writerTags' = ImplWriterResult(scenario)
+  /\ stdout' = ImplStdout(scenario)
+  /\ stderr' = ImplStderr(scenario)
+  /\ warnings' = ImplWarnings(scenario)
+  /\ exitCode' = ImplExitCode(scenario)
+  /\ chmCreated' = ImplChmCreated(scenario)
+  /\ visited' = visited \cup {"ProjectMissing", "Done"}
+  /\ UNCHANGED <<scenario, cliMode>>
+
+CollectFiles ==
+  /\ phase = "ProjectLoaded"
+  /\ "CollectFailed" \notin ImplCollectTags(scenario)
+  /\ phase' = "FilesCollected"
+  /\ collectionTags' = ImplCollectTags(scenario)
+  /\ archive' = ImplCollectArchive(scenario)
+  /\ warnings' = ImplWarnings(scenario)
+  /\ visited' = visited \cup {"FilesCollected"}
+  /\ UNCHANGED <<scenario, cliMode, projectState, metadata, writerTags, stdout, stderr, exitCode, chmCreated>>
+
+CollectFails ==
+  /\ phase = "ProjectLoaded"
+  /\ "CollectFailed" \in ImplCollectTags(scenario)
+  /\ phase' = "Done"
+  /\ collectionTags' = ImplCollectTags(scenario)
+  /\ archive' = ImplCollectArchive(scenario)
+  /\ metadata' = ImplBuildMetadata(scenario)
+  /\ writerTags' = ImplWriterResult(scenario)
+  /\ stdout' = ImplStdout(scenario)
+  /\ stderr' = ImplStderr(scenario)
+  /\ warnings' = ImplWarnings(scenario)
+  /\ exitCode' = ImplExitCode(scenario)
+  /\ chmCreated' = ImplChmCreated(scenario)
+  /\ visited' = visited \cup {"FilesCollected", "Done"}
+  /\ UNCHANGED <<scenario, cliMode, projectState>>
+
+BuildMetadata ==
+  /\ phase = "FilesCollected"
+  /\ phase' = "MetadataBuilt"
+  /\ metadata' = ImplBuildMetadata(scenario)
+  /\ visited' = visited \cup {"MetadataBuilt"}
+  /\ UNCHANGED <<scenario, cliMode, projectState, collectionTags, archive, writerTags, stdout, stderr, warnings, exitCode, chmCreated>>
+
+WriteChm ==
+  /\ phase = "MetadataBuilt"
+  /\ phase' = "Done"
+  /\ writerTags' = ImplWriterResult(scenario)
+  /\ stdout' = ImplStdout(scenario)
+  /\ stderr' = ImplStderr(scenario)
+  /\ exitCode' = ImplExitCode(scenario)
+  /\ chmCreated' = ImplChmCreated(scenario)
+  /\ visited' = visited \cup {"WriterRan", "Done"}
+  /\ UNCHANGED <<scenario, cliMode, projectState, collectionTags, archive, metadata, warnings>>
+
+StayDone ==
+  /\ phase = "Done"
+  /\ UNCHANGED vars
+
+Next ==
+  ParseCli
+  \/ FinishCliTerminal
+  \/ LoadProject
+  \/ ProjectMissing
+  \/ CollectFiles
+  \/ CollectFails
+  \/ BuildMetadata
+  \/ WriteChm
+  \/ StayDone
+
+Spec == Init /\ [][Next]_vars /\ WF_vars(Next)
+
+TypeOK ==
+  /\ scenario \in ImplScenarios
+  /\ phase \in {"Start", "CliParsed", "ProjectLoaded", "FilesCollected", "MetadataBuilt", "Done"}
+  /\ cliMode \in AllCliModes
+  /\ projectState \in AllProjectStates
+  /\ collectionTags \in SUBSET ImplCollectionTags
+  /\ archive \in SUBSET ImplArchivePaths
+  /\ metadata \in SUBSET ImplMetadataTags
+  /\ writerTags \in SUBSET ImplWriterTags
+  /\ stdout \in SUBSET ImplStdoutTags
+  /\ stderr \in SUBSET ImplStderrTags
+  /\ warnings \in SUBSET ImplWarningTags
+  /\ exitCode \in AllExitCodes
+  /\ chmCreated \in BOOLEAN
+  /\ visited \in SUBSET ImplVisitedTags
+
+GherkinSpecSatisfied ==
+  phase = "Done" =>
+    /\ cliMode = SpecCliMode(scenario)
+    /\ projectState = SpecProjectState(scenario)
+    /\ collectionTags = SpecCollectionTags(scenario)
+    /\ archive = SpecArchive(scenario)
+    /\ metadata = SpecMetadata(scenario)
+    /\ writerTags = SpecWriterTags(scenario)
+    /\ stdout = SpecStdout(scenario)
+    /\ stderr = SpecStderr(scenario)
+    /\ warnings = SpecWarnings(scenario)
+    /\ exitCode = SpecExitCode(scenario)
+    /\ chmCreated = SpecChmCreated(scenario)
+    /\ visited = SpecVisited(scenario)
+
+ImplementationStageDiscipline ==
+  /\ phase = "Start" => visited = {"Start"}
+  /\ phase = "CliParsed" => visited = {"Start", "CliParsed"}
+  /\ phase = "ProjectLoaded" => visited = {"Start", "CliParsed", "ProjectLoaded"}
+  /\ phase = "FilesCollected" => visited = {"Start", "CliParsed", "ProjectLoaded", "FilesCollected"}
+  /\ phase = "MetadataBuilt" => visited = {"Start", "CliParsed", "ProjectLoaded", "FilesCollected", "MetadataBuilt"}
+
+NoErrorCreatesChm ==
+  phase = "Done" /\ exitCode # 0 => chmCreated = FALSE
+
+SuccessPassedThroughWriter ==
+  phase = "Done" /\ chmCreated =>
+    /\ "WriterRan" \in visited
+    /\ "PMGL" \in writerTags
+    /\ "Uncompressed" \in writerTags
+
+AllGherkinScenariosModeled ==
+  ImplScenarios = Scenarios
+
+AbnormalSpecCoverage ==
+  /\ ArgErrorScenarios = {"UC004_Cli_UnknownOption", "UC005_Cli_OutMissingValue", "UC006_Cli_MissingProjectArg", "UC007_Cli_MultipleProjects"}
+  /\ CompileErrorScenarios = {"UC012_Hhp_ProjectMissing", "UC021_Files_MissingRequiredFails", "UC061_Error_OutputUnwritable", "UC062_Error_DirectoryEntryTooLarge", "UC063_Error_DirectoryTooLarge", "UC083_Error_CollectInputReadFailure", "UC084_Error_WriterInputReadFailure", "UC085_Error_LockedOutputPreserved", "UC086_Error_MetadataEntryTooLarge"}
+  /\ WarningScenarios = {"UC020_Files_GenerateContents", "UC021_Files_MissingRequiredFails", "UC022_Files_AllowMissing", "UC024_Files_DuplicateConflict", "UC036_Links_OptionalMissing", "UC056_Unsupported_FullTextSearch", "UC057_Unsupported_BinaryToc", "UC058_Unsupported_BinaryIndex", "UC059_Unsupported_MergeFiles", "UC060_Unsupported_WindowsSection", "UC071_Files_DotPathIgnored", "UC080_Metadata_NoDefaultTopicWhenNoHtml", "UC087_Files_GeneratedContentsEscapesHtml"}
+  /\ FailureWithoutChmScenarios = {"UC004_Cli_UnknownOption", "UC005_Cli_OutMissingValue", "UC006_Cli_MissingProjectArg", "UC007_Cli_MultipleProjects", "UC012_Hhp_ProjectMissing", "UC021_Files_MissingRequiredFails", "UC061_Error_OutputUnwritable", "UC062_Error_DirectoryEntryTooLarge", "UC063_Error_DirectoryTooLarge", "UC083_Error_CollectInputReadFailure", "UC084_Error_WriterInputReadFailure", "UC085_Error_LockedOutputPreserved", "UC086_Error_MetadataEntryTooLarge"}
+  /\ WarningSuccessScenarios = {"UC020_Files_GenerateContents", "UC022_Files_AllowMissing", "UC024_Files_DuplicateConflict", "UC036_Links_OptionalMissing", "UC056_Unsupported_FullTextSearch", "UC057_Unsupported_BinaryToc", "UC058_Unsupported_BinaryIndex", "UC059_Unsupported_MergeFiles", "UC060_Unsupported_WindowsSection", "UC071_Files_DotPathIgnored", "UC080_Metadata_NoDefaultTopicWhenNoHtml", "UC087_Files_GeneratedContentsEscapesHtml"}
+  /\ ArgErrorScenarios # {}
+  /\ CompileErrorScenarios # {}
+  /\ WarningScenarios # {}
+  /\ FailureWithoutChmScenarios # {}
+  /\ WarningSuccessScenarios # {}
+
+AbnormalImplementationBehavior ==
+  phase = "Done" =>
+    /\ scenario \in ArgErrorScenarios => exitCode = 2 /\ chmCreated = FALSE
+    /\ scenario \in CompileErrorScenarios => exitCode = 1 /\ chmCreated = FALSE
+    /\ scenario \in WarningScenarios => warnings # {}
+    /\ scenario \in FailureWithoutChmScenarios => exitCode # 0 /\ chmCreated = FALSE
+    /\ scenario \in WarningSuccessScenarios => exitCode = 0 /\ chmCreated = TRUE /\ warnings # {}
+
+EventuallyDone == <> (phase = "Done")
+
+====

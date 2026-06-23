@@ -11,6 +11,18 @@ internal sealed class ChmWriter
     private const int QuickRefDensity = 2;
     private const int QuickRefInterval = 1 + (1 << QuickRefDensity);
 
+    private readonly Action<string, Action<Stream>> _writeTempFile;
+
+    public ChmWriter()
+        : this(WriteTempFile)
+    {
+    }
+
+    internal ChmWriter(Action<string, Action<Stream>> writeTempFile)
+    {
+        _writeTempFile = writeTempFile ?? throw new ArgumentNullException(nameof(writeTempFile));
+    }
+
     public void Write(string outputPath, IReadOnlyList<InputFile> inputFiles, ChmMetadata metadata)
     {
         var entries = BuildEntries(inputFiles, metadata);
@@ -19,18 +31,90 @@ internal sealed class ChmWriter
         var directory = BuildDirectory(entries, metadata.Lcid);
         var content = BuildContent(entries);
 
+        WriteAtomically(outputPath, stream => WriteArchive(stream, directory, content, metadata.Lcid));
+    }
+
+    private static void WriteArchive(Stream stream, byte[] directory, byte[] content, int lcid)
+    {
         var section0Offset = HeaderLength;
         var directoryOffset = section0Offset + HeaderSection0Length;
         var dataOffset = directoryOffset + directory.Length;
         var fileSize = dataOffset + content.Length;
 
-        using var stream = File.Create(outputPath);
-        using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: false);
+        using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
 
-        WriteItsfHeader(writer, section0Offset, HeaderSection0Length, directoryOffset, directory.Length, dataOffset, metadata.Lcid);
+        WriteItsfHeader(writer, section0Offset, HeaderSection0Length, directoryOffset, directory.Length, dataOffset, lcid);
         WriteHeaderSection0(writer, fileSize);
         writer.Write(directory);
         writer.Write(content);
+    }
+
+    private void WriteAtomically(string outputPath, Action<Stream> writeArchive)
+    {
+        var directory = Path.GetDirectoryName(outputPath);
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        var tempDirectory = string.IsNullOrEmpty(directory) ? Directory.GetCurrentDirectory() : directory;
+        var tempPath = Path.Combine(tempDirectory, $".{Path.GetFileName(outputPath)}.{Guid.NewGuid():N}.tmp");
+        var published = false;
+
+        try
+        {
+            _writeTempFile(tempPath, writeArchive);
+            if (File.Exists(outputPath))
+            {
+                ReplaceExisting(tempPath, outputPath);
+            }
+            else
+            {
+                File.Move(tempPath, outputPath);
+            }
+
+            published = true;
+        }
+        finally
+        {
+            if (!published)
+            {
+                TryDelete(tempPath);
+            }
+        }
+    }
+
+    private static void WriteTempFile(string path, Action<Stream> writeArchive)
+    {
+        using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+        writeArchive(stream);
+    }
+
+    private static void ReplaceExisting(string sourcePath, string destinationPath)
+    {
+        try
+        {
+            File.Replace(sourcePath, destinationPath, destinationBackupFileName: null, ignoreMetadataErrors: true);
+        }
+        catch (PlatformNotSupportedException)
+        {
+            File.Move(sourcePath, destinationPath, overwrite: true);
+        }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch
+        {
+            // Preserve the original write/publish exception.
+        }
     }
 
     private static List<ChmEntry> BuildEntries(IReadOnlyList<InputFile> inputFiles, ChmMetadata metadata)
@@ -131,6 +215,8 @@ internal sealed class ChmWriter
         var currentBytes = 0;
         foreach (var entry in entries)
         {
+            EnsureDirectoryEntryFits(entry);
+
             if (!CanFitPmgl(current.Count + 1, currentBytes + entry.Bytes.Length))
             {
                 if (current.Count == 0)
@@ -163,6 +249,8 @@ internal sealed class ChmWriter
 
         foreach (var entry in entries)
         {
+            EnsureDirectoryEntryFits(entry);
+
             if (!CanFitPmgl(current.Count + 1, currentBytes + entry.Bytes.Length))
             {
                 if (current.Count == 0)
@@ -199,6 +287,14 @@ internal sealed class ChmWriter
         }
 
         return chunks;
+    }
+
+    private static void EnsureDirectoryEntryFits(DirectoryEntryBytes entry)
+    {
+        if (!CanFitPmgl(1, entry.Bytes.Length))
+        {
+            throw new CompilationException($"Directory entry is too large for a CHM block: {entry.Name}");
+        }
     }
 
     private static bool CanFitPmgl(int entryCount, int entriesBytes)
