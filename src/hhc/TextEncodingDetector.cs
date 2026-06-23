@@ -31,8 +31,9 @@ internal static class TextEncodingDetector
     {
         var bytes = File.ReadAllBytes(path);
         var encoding = Detect(bytes, fallbackEncoding);
+        var preamble = DetectPreamble(bytes);
         var text = encoding.GetString(bytes);
-        return new TextFile(text.TrimStart('\uFEFF'), encoding);
+        return new TextFile(text.TrimStart('\uFEFF'), encoding, preamble);
     }
 
     public static Encoding ForLcid(int lcid)
@@ -48,6 +49,25 @@ internal static class TextEncodingDetector
         }
     }
 
+    private static byte[] DetectPreamble(ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.StartsWith(new byte[] { 0xEF, 0xBB, 0xBF }))
+        {
+            return new byte[] { 0xEF, 0xBB, 0xBF };
+        }
+
+        if (bytes.StartsWith(new byte[] { 0xFF, 0xFE }))
+        {
+            return new byte[] { 0xFF, 0xFE };
+        }
+
+        if (bytes.StartsWith(new byte[] { 0xFE, 0xFF }))
+        {
+            return new byte[] { 0xFE, 0xFF };
+        }
+
+        return Array.Empty<byte>();
+    }
     private static Encoding Detect(ReadOnlySpan<byte> bytes, Encoding? fallbackEncoding)
     {
         if (bytes.StartsWith(new byte[] { 0xEF, 0xBB, 0xBF }))
@@ -77,4 +97,4 @@ internal static class TextEncodingDetector
     }
 }
 
-internal sealed record TextFile(string Text, Encoding Encoding);
+internal sealed record TextFile(string Text, Encoding Encoding, byte[] Preamble);

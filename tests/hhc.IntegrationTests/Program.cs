@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using Komura.Hhc;
 
@@ -19,6 +20,7 @@ var tests = new (string Name, Action Body)[]
     ("CHM structural header invariants hold", ChmStructuralHeaderInvariantsHold),
     ("CHM directory entries resolve exact user content", ChmDirectoryEntriesResolveExactUserContent),
     ("Japanese Language metadata is stored with CP932 bytes", JapaneseLanguageStoresCp932Metadata),
+    ("invalid Language falls back before metadata storage", InvalidLanguageFallsBackBeforeMetadataStorage),
     ("help exits 0 before project loading", HelpExitsZeroBeforeProjectLoading),
     ("version exits 0 before project loading", VersionExitsZeroBeforeProjectLoading),
     ("unknown CLI option exits 2 without compiling", UnknownCliOptionExitsTwo),
@@ -32,8 +34,11 @@ var tests = new (string Name, Action Body)[]
     ("archive path normalization property seeds never escape", ArchivePathNormalizationPropertySeedsNeverEscape),
     ("generated archive path fuzz seeds never escape", GeneratedArchivePathFuzzSeedsNeverEscape),
     ("link cleaning covers boundary targets", LinkCleaningCoversBoundaryTargets),
+    ("project file percent escapes remain literal", ProjectFilePercentEscapesRemainLiteral),
+    ("HTML base href resolves scanned links", HtmlBaseHrefResolvesScannedLinks),
     ("link scanner extraction seeds cover syntax", LinkScannerExtractionSeedsCoverSyntax),
     ("flat link rewrite seed properties are stable", FlatLinkRewriteSeedPropertiesAreStable),
+    ("flat link rewrite decodes encoded separators", FlatLinkRewriteDecodesEncodedSeparators),
     ("generated flat link rewrite fuzz seeds are idempotent", GeneratedFlatLinkRewriteFuzzSeedsAreIdempotent),
     ("link scanner read failure is absorbed", LinkScannerReadFailureIsAbsorbed),
     ("HHP parser boundary options are stable", HhpParserBoundaryOptionsAreStable),
@@ -41,8 +46,10 @@ var tests = new (string Name, Action Body)[]
     ("encoding detector fallback seeds are stable", EncodingDetectorFallbackSeedsAreStable),
     ("generated invalid UTF-8 fallback seeds select fallback", GeneratedInvalidUtf8FallbackSeedsSelectFallback),
     ("UTF-16 HHP project compiles", Utf16ProjectCompiles),
+    ("flat UTF-16 rewrite preserves BOM", FlatUtf16RewritePreservesBom),
     ("no-link-scan skips optional linked missing files", NoLinkScanSkipsOptionalLinkedMissingFiles),
     ("unsupported HHW features warn but succeed", UnsupportedHhwFeaturesWarnButSucceed),
+    ("generated TOC avoids user archive path collision", GeneratedTocAvoidsUserArchivePathCollision),
     ("unwritable output target exits 1 without CHM creation", UnwritableOutputTargetExitsOne),
     ("locked input file read exits 1 before creating CHM", LockedInputFileReadExitsOne),
     ("locked output file create exits 1 without overwriting existing file", LockedOutputFileCreateExitsOne),
@@ -225,7 +232,7 @@ void JapaneseLanguageStoresCp932Metadata()
 {
     using var project = TempProject.Create();
     var cp932 = Encoding.GetEncoding(932);
-    var title = "日本語タイトル";
+    var title = "\u65E5\u672C\u8A9E\u30BF\u30A4\u30C8\u30EB";
 
     project.WriteText("index.html", "<html><body>Japanese metadata</body></html>");
     project.WriteText(
@@ -711,7 +718,7 @@ void HhpParserEncodingAndLineEndingSeedsAreStable()
 {
     using var project = TempProject.Create();
     var cp932 = Encoding.GetEncoding(932);
-    var title = "日本語タイトル";
+    var title = "\u65E5\u672C\u8A9E\u30BF\u30A4\u30C8\u30EB";
     project.WriteText(
         "cp932.hhp",
         "[OPTIONS]\rLanguage=0411 Japanese\rTitle=" + title + "\r[FILES]\r\"index.html\"\r",
@@ -743,7 +750,7 @@ void EncodingDetectorFallbackSeedsAreStable()
 {
     using var project = TempProject.Create();
     var cp932 = Encoding.GetEncoding(932);
-    var title = "日本語タイトル";
+    var title = "\u65E5\u672C\u8A9E\u30BF\u30A4\u30C8\u30EB";
 
     project.WriteBytes("invalid-utf8-cp932.txt", cp932.GetBytes(title));
     var cp932Text = TextEncodingDetector.Read(project.File("invalid-utf8-cp932.txt").FullName, cp932);
@@ -1207,6 +1214,171 @@ void AggregateDirectoryIndexTooLargeFailsBeforePublishingOutput()
         "Temporary output file was created before aggregate directory validation failed.");
 }
 
+void InvalidLanguageFallsBackBeforeMetadataStorage()
+{
+    using var project = TempProject.Create();
+    project.WriteText("index.html", "<html><body>Invalid LCID fallback</body></html>");
+    project.WriteText(
+        "help.hhp",
+        string.Join(
+            "\r\n",
+            "[OPTIONS]",
+            "Compiled file=invalid-language.chm",
+            "Language=0xFFFF Broken",
+            "[FILES]",
+            "index.html",
+            string.Empty));
+
+    var result = RunHhc(project.File("help.hhp").FullName);
+
+    AssertEqual(0, result.ExitCode, result.ToString());
+    var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("invalid-language.chm").FullName));
+    AssertEqual(CultureInfo.CurrentCulture.LCID, ReadSystemLcid(entries["/#SYSTEM"]), "Invalid LCID should fall back before #SYSTEM metadata is written.");
+}
+
+void ProjectFilePercentEscapesRemainLiteral()
+{
+    AssertEqual(
+        System.IO.Path.Combine("assets", "a%20b.html"),
+        ArchivePath.CleanProjectPath("assets/a%20b.html"),
+        "Project paths should preserve literal percent escapes.");
+
+    using var project = TempProject.Create();
+    project.WriteText("assets/a%20b.html", "<html><body>PERCENT LITERAL</body></html>");
+    project.WriteText(
+        "help.hhp",
+        string.Join(
+            "\r\n",
+            "[OPTIONS]",
+            "Compiled file=percent-literal.chm",
+            "[FILES]",
+            "assets/a%20b.html",
+            string.Empty));
+
+    var result = RunHhc(project.File("help.hhp").FullName);
+
+    AssertEqual(0, result.ExitCode, result.ToString());
+    var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("percent-literal.chm").FullName));
+    AssertEqual(true, entries.ContainsKey("/assets/a%20b.html"), "Literal percent path should be embedded under its exact archive name.");
+    AssertContainsBytes(entries["/assets/a%20b.html"], Encoding.UTF8.GetBytes("PERCENT LITERAL"), "literal percent file payload");
+}
+
+void HtmlBaseHrefResolvesScannedLinks()
+{
+    using var project = TempProject.Create();
+    project.WriteText(
+        "topics/page.html",
+        """
+        <html><head><base href="../assets/"></head>
+        <body><img src="logo.png"></body></html>
+        """);
+    project.WriteBytes("assets/logo.png", new byte[] { 1, 2, 3, 4, 5 });
+    project.WriteText(
+        "help.hhp",
+        string.Join(
+            "\r\n",
+            "[OPTIONS]",
+            "Compiled file=base-href.chm",
+            "[FILES]",
+            "topics/page.html",
+            string.Empty));
+
+    var result = RunHhc(project.File("help.hhp").FullName);
+
+    AssertEqual(0, result.ExitCode, result.ToString());
+    var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("base-href.chm").FullName));
+    AssertEqual(true, entries.ContainsKey("/assets/logo.png"), "Link scanner should resolve relative href/src values through local base href.");
+}
+
+void FlatLinkRewriteDecodesEncodedSeparators()
+{
+    var text = """
+        <a href="topics%2Fusage.html#top">Usage</a>
+        <img src="topics&#47;cover.png?size=small">
+        """;
+
+    var rewritten = LinkScanner.RewriteLinksForFlatArchive(text);
+
+    AssertContainsText(rewritten, "href=\"usage.html#top\"");
+    AssertContainsText(rewritten, "src=\"cover.png?size=small\"");
+}
+
+void FlatUtf16RewritePreservesBom()
+{
+    using var project = TempProject.Create();
+    project.WriteText("index.html", "<html><body><a href=\"topics/usage.html\">Usage</a></body></html>", Encoding.Unicode);
+    project.WriteText("topics/usage.html", "<html><body>Usage topic</body></html>");
+    project.WriteText(
+        "help.hhp",
+        string.Join(
+            "\r\n",
+            "[OPTIONS]",
+            "Compiled file=utf16-flat.chm",
+            "Flat=Yes",
+            "[FILES]",
+            "index.html",
+            "topics/usage.html",
+            string.Empty));
+
+    var result = RunHhc(project.File("help.hhp").FullName);
+
+    AssertEqual(0, result.ExitCode, result.ToString());
+    var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("utf16-flat.chm").FullName));
+    var index = entries["/index.html"];
+    AssertEqual(0xFF, index[0], "UTF-16 LE BOM first byte should be preserved.");
+    AssertEqual(0xFE, index[1], "UTF-16 LE BOM second byte should be preserved.");
+    AssertContainsText(Encoding.Unicode.GetString(index), "href=\"usage.html\"");
+}
+
+void GeneratedTocAvoidsUserArchivePathCollision()
+{
+    using var project = TempProject.Create();
+    project.WriteText("index.html", "<html><body>Topic</body></html>");
+    project.WriteText("Table of Contents.hhc", "<html><body>USER TOC PAYLOAD</body></html>");
+    project.WriteText(
+        "help.hhp",
+        string.Join(
+            "\r\n",
+            "[OPTIONS]",
+            "Compiled file=toc-collision.chm",
+            "[FILES]",
+            "index.html",
+            "Table of Contents.hhc",
+            string.Empty));
+
+    var result = RunHhc(project.File("help.hhp").FullName);
+
+    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertContainsText(result.Stderr, "Generated contents file uses 'Table of Contents 2.hhc'");
+    var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("toc-collision.chm").FullName));
+    AssertContainsBytes(entries["/Table of Contents.hhc"], Encoding.UTF8.GetBytes("USER TOC PAYLOAD"), "user TOC payload");
+    AssertEqual(true, entries.ContainsKey("/Table of Contents 2.hhc"), "Generated TOC should use a unique archive path when the default name is occupied.");
+    AssertContainsBytes(entries["/#SYSTEM"], Encoding.UTF8.GetBytes("Table of Contents 2.hhc"), "#SYSTEM generated TOC path");
+}
+
+static int ReadSystemLcid(byte[] systemFile)
+{
+    var offset = 4;
+    while (offset + 4 <= systemFile.Length)
+    {
+        var code = BitConverter.ToUInt16(systemFile, offset);
+        var length = BitConverter.ToUInt16(systemFile, offset + 2);
+        offset += 4;
+        if (offset + length > systemFile.Length)
+        {
+            throw new InvalidOperationException("#SYSTEM entry exceeds file bounds.");
+        }
+
+        if (code == 4)
+        {
+            return BitConverter.ToInt32(systemFile, offset);
+        }
+
+        offset += length;
+    }
+
+    throw new InvalidOperationException("#SYSTEM code 4 entry was not found.");
+}
 void WriteStandardProject(TempProject project, string outputName)
 {
     project.WriteText("index.html", "<html><body><a href=\"topics/intro.html\">Intro</a></body></html>");

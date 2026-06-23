@@ -23,22 +23,24 @@ internal static partial class LinkScanner
             return Array.Empty<string>();
         }
 
+        var baseHref = BaseHrefApplies(extension) ? ExtractBaseHref(text) : null;
+        var scanText = baseHref is null ? text : BaseTagRegex().Replace(text, string.Empty);
         var links = new List<string>();
-        foreach (Match match in AttributeLinkRegex().Matches(text))
+        foreach (Match match in AttributeLinkRegex().Matches(scanText))
         {
-            AddGroup(links, match);
+            AddGroup(links, match, baseHref);
         }
 
-        ExtractLocalParamLinks(text, links);
+        ExtractLocalParamLinks(scanText, links, baseHref);
 
-        foreach (Match match in CssImportStringRegex().Matches(text))
+        foreach (Match match in CssImportStringRegex().Matches(scanText))
         {
-            AddGroup(links, match);
+            AddGroup(links, match, baseHref);
         }
 
-        foreach (Match match in CssUrlRegex().Matches(text))
+        foreach (Match match in CssUrlRegex().Matches(scanText))
         {
-            AddGroup(links, match);
+            AddGroup(links, match, baseHref);
         }
 
         return links;
@@ -62,19 +64,27 @@ internal static partial class LinkScanner
             || extension.Equals(".css", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static void AddGroup(List<string> links, Match match)
+    private static bool BaseHrefApplies(string extension)
+    {
+        return extension.Equals(".htm", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".html", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".hhc", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".hhk", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void AddGroup(List<string> links, Match match, string? baseHref)
     {
         for (var i = 1; i < match.Groups.Count; i++)
         {
             if (match.Groups[i].Success && match.Groups[i].Value.Length > 0)
             {
-                links.Add(match.Groups[i].Value);
+                links.Add(ApplyBaseHref(match.Groups[i].Value, baseHref));
                 return;
             }
         }
     }
 
-    private static void ExtractLocalParamLinks(string text, List<string> links)
+    private static void ExtractLocalParamLinks(string text, List<string> links, string? baseHref)
     {
         foreach (Match tag in ParamTagRegex().Matches(text))
         {
@@ -87,9 +97,101 @@ internal static partial class LinkScanner
             var value = GetAttributeValue(tag.Value, "value");
             if (!string.IsNullOrEmpty(value))
             {
-                links.Add(value);
+                links.Add(ApplyBaseHref(value, baseHref));
             }
         }
+    }
+
+    private static string? ExtractBaseHref(string text)
+    {
+        foreach (Match tag in BaseTagRegex().Matches(text))
+        {
+            var href = GetAttributeValue(tag.Value, "href");
+            if (!string.IsNullOrWhiteSpace(href))
+            {
+                return href;
+            }
+        }
+
+        return null;
+    }
+
+    private static string ApplyBaseHref(string value, string? baseHref)
+    {
+        if (string.IsNullOrWhiteSpace(baseHref) || !ShouldResolveAgainstBase(value))
+        {
+            return value;
+        }
+
+        var trimmedBase = baseHref.Trim();
+        if (ArchivePath.CleanLink(trimmedBase) is { } localBase)
+        {
+            var baseDirectory = DirectoryPartForBaseHref(localBase, trimmedBase);
+            return string.IsNullOrEmpty(baseDirectory)
+                ? value
+                : ArchivePath.Combine(baseDirectory, value);
+        }
+
+        if (Uri.TryCreate(trimmedBase, UriKind.Absolute, out var absoluteBase)
+            && Uri.TryCreate(absoluteBase, value, out var resolved))
+        {
+            return resolved.ToString();
+        }
+
+        if (trimmedBase.StartsWith("//", StringComparison.Ordinal))
+        {
+            return trimmedBase.TrimEnd('/') + "/" + value;
+        }
+
+        return value;
+    }
+
+    private static bool ShouldResolveAgainstBase(string value)
+    {
+        var trimmed = value.Trim();
+        return trimmed.Length > 0
+            && !trimmed.StartsWith("#", StringComparison.Ordinal)
+            && !trimmed.StartsWith("/", StringComparison.Ordinal)
+            && !trimmed.StartsWith("\\", StringComparison.Ordinal)
+            && !trimmed.StartsWith("//", StringComparison.Ordinal)
+            && !HasScheme(trimmed);
+    }
+
+    private static bool HasScheme(string value)
+    {
+        var colon = value.IndexOf(':');
+        if (colon <= 0)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < colon; i++)
+        {
+            var ch = value[i];
+            if (i == 0 ? !char.IsLetter(ch) : !(char.IsLetterOrDigit(ch) || ch == '+' || ch == '-' || ch == '.'))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static string DirectoryPartForBaseHref(string cleanBaseHref, string rawBaseHref)
+    {
+        var normalized = cleanBaseHref.Replace('\\', '/').Trim();
+        if (normalized.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        if (rawBaseHref.EndsWith("/", StringComparison.Ordinal) || rawBaseHref.EndsWith("\\", StringComparison.Ordinal))
+        {
+            return normalized.TrimEnd('/');
+        }
+
+        var slash = normalized.LastIndexOf('/');
+        return slash < 0 ? string.Empty : normalized[..slash];
     }
 
     private static string? GetAttributeValue(string tag, string attributeName)
@@ -162,21 +264,60 @@ internal static partial class LinkScanner
 
     private static string FlattenLocalTarget(string value)
     {
-        if (ArchivePath.CleanLink(value) is null)
+        var cleaned = ArchivePath.CleanLink(value);
+        if (cleaned is null)
         {
             return value;
         }
 
-        var cut = value.IndexOfAny(new[] { '#', '?' });
-        var target = cut >= 0 ? value[..cut] : value;
+        var cut = FindSuffixStart(value);
         var suffix = cut >= 0 ? value[cut..] : string.Empty;
-        var slash = target.LastIndexOfAny(new[] { '/', '\\' });
+        var target = cleaned.Replace('\\', '/');
+        var slash = target.LastIndexOf('/');
         var fileName = slash >= 0 ? target[(slash + 1)..] : target;
         return fileName.Length == 0 ? value : fileName + suffix;
     }
 
+    private static int FindSuffixStart(string value)
+    {
+        for (var i = 0; i < value.Length; i++)
+        {
+            if (value[i] == '?')
+            {
+                return i;
+            }
+
+            if (value[i] == '#' && !IsNumericCharacterReferenceHash(value, i))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private static bool IsNumericCharacterReferenceHash(string value, int hashIndex)
+    {
+        if (hashIndex == 0 || value[hashIndex - 1] != '&' || hashIndex + 1 >= value.Length)
+        {
+            return false;
+        }
+
+        var first = value[hashIndex + 1];
+        if (!char.IsDigit(first) && first is not 'x' and not 'X')
+        {
+            return false;
+        }
+
+        var semicolon = value.IndexOf(';', hashIndex + 1);
+        return semicolon > hashIndex;
+    }
+
     [GeneratedRegex("""(?is)\b(?:href|src)\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s>]+))""")]
     private static partial Regex AttributeLinkRegex();
+
+    [GeneratedRegex("""(?is)<base\b[^>]*>""")]
+    private static partial Regex BaseTagRegex();
 
     [GeneratedRegex("""(?is)<param\b[^>]*>""")]
     private static partial Regex ParamTagRegex();

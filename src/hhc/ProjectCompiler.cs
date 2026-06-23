@@ -16,7 +16,7 @@ internal sealed class ProjectCompiler
     {
         var project = HhpProject.Load(_options.ProjectPath!);
         var flat = project.OptionIsYes("Flat");
-        var lcid = TryParseLcid(project.Option("Language")) ?? CultureInfo.CurrentCulture.LCID;
+        var lcid = TryParseSupportedLcid(project.Option("Language")) ?? CultureInfo.CurrentCulture.LCID;
         var helpTextEncoding = TextEncodingDetector.ForLcid(lcid);
         var files = CollectFiles(project, flat, helpTextEncoding);
         if (files.MissingRequired.Count > 0 && !_options.AllowMissing)
@@ -30,7 +30,7 @@ internal sealed class ProjectCompiler
         WarnForUnsupportedOptions(project);
 
         var outputPath = ResolveOutputPath(project);
-        var metadata = BuildMetadata(project, outputPath, lcid, helpTextEncoding, files.DefaultTopicArchivePath, files.GeneratedContentsFile is not null);
+        var metadata = BuildMetadata(project, outputPath, lcid, helpTextEncoding, files.DefaultTopicArchivePath, files.GeneratedContentsFile);
         var writer = new ChmWriter();
         writer.Write(outputPath, files.InputFiles, metadata);
 
@@ -144,9 +144,14 @@ internal sealed class ProjectCompiler
         InputFile? generatedContents = null;
         if (project.Option("Contents file") is null)
         {
-            generatedContents = BuildGeneratedContentsFile(byArchivePath.Values, helpTextEncoding);
-            byArchivePath[generatedContents.ArchivePath] = generatedContents;
+            var generatedArchivePath = UniqueGeneratedContentsArchivePath(byArchivePath);
+            generatedContents = BuildGeneratedContentsFile(byArchivePath.Values, generatedArchivePath, helpTextEncoding);
+            byArchivePath.Add(generatedContents.ArchivePath, generatedContents);
             _warnings.Add("No Contents file was specified; generated a simple table of contents.");
+            if (!generatedArchivePath.Equals("Table of Contents.hhc", StringComparison.OrdinalIgnoreCase))
+            {
+                _warnings.Add($"Generated contents file uses '{generatedArchivePath}' because 'Table of Contents.hhc' is already present.");
+            }
         }
 
         return new CollectedFiles(byArchivePath.Values.OrderBy(f => f.ArchivePath, ChmPathComparer.Instance).ToList(), missingRequired, defaultTopicArchivePath, generatedContents?.ArchivePath);
@@ -176,18 +181,18 @@ internal sealed class ProjectCompiler
             .Replace('/', Path.DirectorySeparatorChar);
     }
 
-    private ChmMetadata BuildMetadata(HhpProject project, string outputPath, int lcid, System.Text.Encoding helpTextEncoding, string? defaultTopicArchivePath, bool contentsFileGenerated)
+    private ChmMetadata BuildMetadata(HhpProject project, string outputPath, int lcid, System.Text.Encoding helpTextEncoding, string? defaultTopicArchivePath, string? generatedContentsArchivePath)
     {
         var compiledStem = Path.GetFileNameWithoutExtension(outputPath).ToLowerInvariant();
         var contentsFile = NormalizeOptionArchivePath(project, project.Option("Contents file"), project.OptionIsYes("Flat"))
-            ?? (contentsFileGenerated ? "Table of Contents.hhc" : null);
+            ?? generatedContentsArchivePath;
         var defaultWindow = project.Option("Default Window") ?? "main";
         return new ChmMetadata(
             Title: project.Option("Title") ?? Path.GetFileNameWithoutExtension(project.ProjectPath),
             DefaultTopic: defaultTopicArchivePath,
             ContentsFile: contentsFile,
             IndexFile: NormalizeOptionArchivePath(project, project.Option("Index file"), project.OptionIsYes("Flat")),
-            ContentsFileGenerated: contentsFileGenerated,
+            ContentsFileGenerated: generatedContentsArchivePath is not null,
             DefaultWindow: defaultWindow,
             DefaultFont: project.Option("Default Font"),
             CompiledFileStem: compiledStem,
@@ -241,7 +246,7 @@ internal sealed class ProjectCompiler
         }
     }
 
-    private static int? TryParseLcid(string? language)
+    private static int? TryParseSupportedLcid(string? language)
     {
         if (string.IsNullOrWhiteSpace(language))
         {
@@ -255,7 +260,20 @@ internal sealed class ProjectCompiler
         }
 
         token = token.StartsWith("0x", StringComparison.OrdinalIgnoreCase) ? token[2..] : token;
-        return int.TryParse(token, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var lcid) ? lcid : null;
+        if (!int.TryParse(token, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var lcid))
+        {
+            return null;
+        }
+
+        try
+        {
+            _ = CultureInfo.GetCultureInfo(lcid);
+            return lcid;
+        }
+        catch (CultureNotFoundException)
+        {
+            return null;
+        }
     }
 
     private static string ResolveSourcePath(string projectDirectory, string path, string? baseDirectory, bool isProjectPath)
@@ -329,7 +347,25 @@ internal sealed class ProjectCompiler
         return full.StartsWith(dir, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static InputFile BuildGeneratedContentsFile(IEnumerable<InputFile> files, System.Text.Encoding encoding)
+    private static string UniqueGeneratedContentsArchivePath(IReadOnlyDictionary<string, InputFile> byArchivePath)
+    {
+        const string defaultName = "Table of Contents.hhc";
+        if (!byArchivePath.ContainsKey(defaultName))
+        {
+            return defaultName;
+        }
+
+        for (var index = 2; ; index++)
+        {
+            var candidate = $"Table of Contents {index}.hhc";
+            if (!byArchivePath.ContainsKey(candidate))
+            {
+                return candidate;
+            }
+        }
+    }
+
+    private static InputFile BuildGeneratedContentsFile(IEnumerable<InputFile> files, string archivePath, System.Text.Encoding encoding)
     {
         var topics = files
             .Where(f => IsHtmlFile(f.ArchivePath))
@@ -359,7 +395,7 @@ internal sealed class ProjectCompiler
         lines.Add("</html>");
 
         var text = string.Join("\r\n", lines) + "\r\n";
-        return new InputFile(string.Empty, "Table of Contents.hhc", "Generated contents", encoding.GetBytes(text));
+        return new InputFile(string.Empty, archivePath, "Generated contents", encoding.GetBytes(text));
     }
 
     private static byte[]? BuildInputData(string sourcePath, System.Text.Encoding helpTextEncoding, bool flat)
@@ -383,7 +419,21 @@ internal sealed class ProjectCompiler
         }
 
         var textFile = TextEncodingDetector.Read(sourcePath, helpTextEncoding);
-        return textFile.Encoding.GetBytes(LinkScanner.RewriteLinksForFlatArchive(textFile.Text));
+        return EncodeWithPreamble(textFile.Encoding, LinkScanner.RewriteLinksForFlatArchive(textFile.Text), textFile.Preamble);
+    }
+
+    private static byte[] EncodeWithPreamble(System.Text.Encoding encoding, string text, byte[] preamble)
+    {
+        var body = encoding.GetBytes(text);
+        if (preamble.Length == 0)
+        {
+            return body;
+        }
+
+        var bytes = new byte[preamble.Length + body.Length];
+        Buffer.BlockCopy(preamble, 0, bytes, 0, preamble.Length);
+        Buffer.BlockCopy(body, 0, bytes, preamble.Length, body.Length);
+        return bytes;
     }
 
     private static bool IsRewritableTextFile(string extension)

@@ -6,20 +6,20 @@ internal static class ArchivePath
 {
     private static readonly string[] ExternalSchemes =
     {
-        "http:", "https:", "ftp:", "mailto:", "javascript:", "data:", "about:", "news:", "tel:"
+        "http:", "https:", "ftp:", "mailto:", "javascript:", "data:", "about:", "news:", "tel:", "file:"
     };
 
     public static string? CleanLink(string raw)
     {
-        return Clean(raw, stripFragmentAndQuery: true);
+        return Clean(raw, stripFragmentAndQuery: true, decodePercentEscapes: true);
     }
 
     public static string? CleanProjectPath(string raw)
     {
-        return Clean(raw, stripFragmentAndQuery: false);
+        return Clean(raw, stripFragmentAndQuery: false, decodePercentEscapes: false);
     }
 
-    private static string? Clean(string raw, bool stripFragmentAndQuery)
+    private static string? Clean(string raw, bool stripFragmentAndQuery, bool decodePercentEscapes)
     {
         var value = WebUtility.HtmlDecode(raw).Trim();
         if (value.Length == 0 || value.StartsWith('#'))
@@ -64,13 +64,16 @@ internal static class ArchivePath
             return null;
         }
 
-        try
+        if (decodePercentEscapes)
         {
-            value = Uri.UnescapeDataString(value);
-        }
-        catch
-        {
-            // Keep the original spelling when percent decoding is malformed.
+            try
+            {
+                value = Uri.UnescapeDataString(value);
+            }
+            catch
+            {
+                // Keep the original spelling when percent decoding is malformed.
+            }
         }
 
         return value
