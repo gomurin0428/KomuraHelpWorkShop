@@ -317,6 +317,11 @@ internal sealed class ProjectCompiler
         }
         else if (isProjectPath)
         {
+            if (ArchivePath.NormalizeForArchive(originalPath, flat: false).Length == 0)
+            {
+                return string.Empty;
+            }
+
             relative = Path.GetFileName(sourcePath);
         }
         else if (!string.IsNullOrEmpty(archiveBaseDirectory) && !IsRootedPath(originalPath))

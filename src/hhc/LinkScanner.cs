@@ -48,6 +48,7 @@ internal static partial class LinkScanner
 
     public static string RewriteLinksForFlatArchive(string text)
     {
+        text = BaseTagRegex().Replace(text, RewriteBaseTagForFlatArchive);
         text = AttributeLinkRegex().Replace(text, RewriteMatchValue);
         text = ParamTagRegex().Replace(text, RewriteLocalParamTag);
         text = CssImportStringRegex().Replace(text, RewriteMatchValue);
@@ -114,6 +115,17 @@ internal static partial class LinkScanner
         }
 
         return null;
+    }
+
+    private static string RewriteBaseTagForFlatArchive(Match tag)
+    {
+        var href = GetAttributeValue(tag.Value, "href");
+        if (string.IsNullOrWhiteSpace(href) || ArchivePath.CleanLink(href) is null)
+        {
+            return tag.Value;
+        }
+
+        return string.Empty;
     }
 
     private static string ApplyBaseHref(string value, string? baseHref)
@@ -271,11 +283,76 @@ internal static partial class LinkScanner
         }
 
         var cut = FindSuffixStart(value);
+        var rawTarget = cut >= 0 ? value[..cut] : value;
         var suffix = cut >= 0 ? value[cut..] : string.Empty;
         var target = cleaned.Replace('\\', '/');
         var slash = target.LastIndexOf('/');
         var fileName = slash >= 0 ? target[(slash + 1)..] : target;
-        return fileName.Length == 0 ? value : fileName + suffix;
+        var rewrittenFileName = RawFileNameForFlattening(rawTarget, fileName);
+        return rewrittenFileName.Length == 0 ? value : rewrittenFileName + suffix;
+    }
+
+    private static string RawFileNameForFlattening(string rawTarget, string decodedFileName)
+    {
+        var start = 0;
+        for (var i = 0; i < rawTarget.Length; i++)
+        {
+            if (rawTarget[i] is '/' or '\\')
+            {
+                start = i + 1;
+                continue;
+            }
+
+            var separatorLength = PercentEncodedSeparatorLength(rawTarget, i);
+            if (separatorLength == 0)
+            {
+                separatorLength = CharacterReferenceSeparatorLength(rawTarget, i);
+            }
+
+            if (separatorLength > 0)
+            {
+                start = i + separatorLength;
+                i += separatorLength - 1;
+            }
+        }
+
+        var rawFileName = rawTarget[start..];
+        return rawFileName.Length == 0 ? decodedFileName : rawFileName;
+    }
+
+    private static int PercentEncodedSeparatorLength(string value, int index)
+    {
+        if (index + 2 >= value.Length || value[index] != '%')
+        {
+            return 0;
+        }
+
+        var first = char.ToUpperInvariant(value[index + 1]);
+        var second = char.ToUpperInvariant(value[index + 2]);
+        return (first == '2' && second == 'F') || (first == '5' && second == 'C') ? 3 : 0;
+    }
+
+    private static int CharacterReferenceSeparatorLength(string value, int index)
+    {
+        if (value[index] != '&')
+        {
+            return 0;
+        }
+
+        var semicolon = value.IndexOf(';', index + 1);
+        if (semicolon < 0)
+        {
+            return 0;
+        }
+
+        var body = value[(index + 1)..semicolon];
+        return body.Equals("#47", StringComparison.OrdinalIgnoreCase)
+            || body.Equals("#x2f", StringComparison.OrdinalIgnoreCase)
+            || body.Equals("#92", StringComparison.OrdinalIgnoreCase)
+            || body.Equals("#x5c", StringComparison.OrdinalIgnoreCase)
+            || body.Equals("sol", StringComparison.OrdinalIgnoreCase)
+            ? semicolon - index + 1
+            : 0;
     }
 
     private static int FindSuffixStart(string value)

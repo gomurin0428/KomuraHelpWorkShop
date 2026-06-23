@@ -33,12 +33,15 @@ var tests = new (string Name, Action Body)[]
     ("outside project basename collisions warn and keep first", OutsideProjectBasenameCollisionsWarnAndKeepFirst),
     ("archive path normalization property seeds never escape", ArchivePathNormalizationPropertySeedsNeverEscape),
     ("generated archive path fuzz seeds never escape", GeneratedArchivePathFuzzSeedsNeverEscape),
+    ("dot project path entries are ignored", DotProjectPathEntriesAreIgnored),
     ("link cleaning covers boundary targets", LinkCleaningCoversBoundaryTargets),
     ("project file percent escapes remain literal", ProjectFilePercentEscapesRemainLiteral),
     ("HTML base href resolves scanned links", HtmlBaseHrefResolvesScannedLinks),
     ("link scanner extraction seeds cover syntax", LinkScannerExtractionSeedsCoverSyntax),
     ("flat link rewrite seed properties are stable", FlatLinkRewriteSeedPropertiesAreStable),
+    ("flat base href is removed during rewrite", FlatBaseHrefIsRemovedDuringRewrite),
     ("flat link rewrite decodes encoded separators", FlatLinkRewriteDecodesEncodedSeparators),
+    ("flat link rewrite preserves reserved escapes", FlatLinkRewritePreservesReservedEscapes),
     ("generated flat link rewrite fuzz seeds are idempotent", GeneratedFlatLinkRewriteFuzzSeedsAreIdempotent),
     ("link scanner read failure is absorbed", LinkScannerReadFailureIsAbsorbed),
     ("HHP parser boundary options are stable", HhpParserBoundaryOptionsAreStable),
@@ -1356,6 +1359,101 @@ void GeneratedTocAvoidsUserArchivePathCollision()
     AssertContainsBytes(entries["/#SYSTEM"], Encoding.UTF8.GetBytes("Table of Contents 2.hhc"), "#SYSTEM generated TOC path");
 }
 
+void DotProjectPathEntriesAreIgnored()
+{
+    using var project = TempProject.Create();
+    project.WriteText("index.html", "<html><body>Dot paths are no-op entries</body></html>");
+    project.WriteText(
+        "help.hhp",
+        string.Join(
+            "\r\n",
+            "[OPTIONS]",
+            "Compiled file=dot-path.chm",
+            "[FILES]",
+            ".",
+            "./",
+            "index.html",
+            string.Empty));
+
+    var result = RunHhc(project.File("help.hhp").FullName);
+
+    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertNotContainsText(result.Stderr, "file not found: .");
+    var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("dot-path.chm").FullName));
+    AssertEqual(true, entries.ContainsKey("/index.html"), "Dot path entries should not prevent normal files from compiling.");
+}
+
+void FlatBaseHrefIsRemovedDuringRewrite()
+{
+    var text = """
+        <html><head><base href="../assets/"></head>
+        <body><img src="logo.png"></body></html>
+        """;
+    var rewritten = LinkScanner.RewriteLinksForFlatArchive(text);
+
+    AssertNotContainsText(rewritten, "<base");
+    AssertContainsText(rewritten, "src=\"logo.png\"");
+    AssertEqual(rewritten, LinkScanner.RewriteLinksForFlatArchive(rewritten), "Removing a local base tag during flat rewrite should be idempotent.");
+
+    using var project = TempProject.Create();
+    project.WriteText("topics/page.html", text);
+    project.WriteBytes("assets/logo.png", new byte[] { 9, 8, 7, 6 });
+    project.WriteText(
+        "help.hhp",
+        string.Join(
+            "\r\n",
+            "[OPTIONS]",
+            "Compiled file=flat-base.chm",
+            "Flat=Yes",
+            "[FILES]",
+            "topics/page.html",
+            string.Empty));
+
+    var result = RunHhc(project.File("help.hhp").FullName);
+
+    AssertEqual(0, result.ExitCode, result.ToString());
+    var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("flat-base.chm").FullName));
+    AssertEqual(true, entries.ContainsKey("/page.html"), "Flat page should be stored by basename.");
+    AssertEqual(true, entries.ContainsKey("/logo.png"), "Base-resolved asset should be stored by flattened basename.");
+    AssertEqual(false, entries.ContainsKey("/assets/logo.png"), "Flat archive should not keep the asset directory path.");
+    var pageText = Encoding.UTF8.GetString(entries["/page.html"]);
+    AssertNotContainsText(pageText, "<base");
+    AssertContainsText(pageText, "src=\"logo.png\"");
+}
+
+void FlatLinkRewritePreservesReservedEscapes()
+{
+    var text = "<a href=\"topics/C%23Guide.html\">C#</a>";
+    var rewritten = LinkScanner.RewriteLinksForFlatArchive(text);
+
+    AssertContainsText(rewritten, "href=\"C%23Guide.html\"");
+    AssertNotContainsText(rewritten, "href=\"C#Guide.html\"");
+
+    using var project = TempProject.Create();
+    project.WriteText("index.html", "<html><body><a href=\"topics/C%23Guide.html\">C# guide</a></body></html>");
+    project.WriteText("topics/C#Guide.html", "<html><body>C# Guide</body></html>");
+    project.WriteText(
+        "help.hhp",
+        string.Join(
+            "\r\n",
+            "[OPTIONS]",
+            "Compiled file=reserved-escape.chm",
+            "Flat=Yes",
+            "[FILES]",
+            "index.html",
+            "topics/C#Guide.html",
+            string.Empty));
+
+    var result = RunHhc(project.File("help.hhp").FullName);
+
+    AssertEqual(0, result.ExitCode, result.ToString());
+    var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("reserved-escape.chm").FullName));
+    AssertEqual(true, entries.ContainsKey("/C#Guide.html"), "Decoded archive filename should still be embedded.");
+    var indexText = Encoding.UTF8.GetString(entries["/index.html"]);
+    AssertContainsText(indexText, "href=\"C%23Guide.html\"");
+    AssertNotContainsText(indexText, "href=\"C#Guide.html\"");
+}
+
 static int ReadSystemLcid(byte[] systemFile)
 {
     var offset = 4;
@@ -1379,6 +1477,7 @@ static int ReadSystemLcid(byte[] systemFile)
 
     throw new InvalidOperationException("#SYSTEM code 4 entry was not found.");
 }
+
 void WriteStandardProject(TempProject project, string outputName)
 {
     project.WriteText("index.html", "<html><body><a href=\"topics/intro.html\">Intro</a></body></html>");
