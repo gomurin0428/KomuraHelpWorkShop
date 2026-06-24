@@ -1,0 +1,97 @@
+body {
+  font-family: "Yu Gothic UI", Meiryo, "Segoe UI", sans-serif;
+  line-height: 1.65;
+  margin: 24px 32px;
+  color: #202124;
+  background: #fff;
+}
+
+.page-header {
+  border-bottom: 1px solid #d7dce2;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+}
+
+.eyebrow {
+  color: #5b6472;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  margin: 0 0 4px;
+  text-transform: uppercase;
+}
+
+h1 {
+  font-size: 28px;
+  margin: 0 0 8px;
+}
+
+h2 {
+  border-left: 4px solid #2b6cb0;
+  font-size: 19px;
+  margin-top: 28px;
+  padding-left: 10px;
+}
+
+.lead {
+  color: #3d4653;
+  font-size: 15px;
+  margin: 0;
+}
+
+code {
+  background: #f1f4f8;
+  border: 1px solid #d7dce2;
+  border-radius: 4px;
+  font-family: Consolas, "Courier New", monospace;
+  padding: 1px 4px;
+}
+
+pre {
+  background: #f7f9fb;
+  border: 1px solid #d7dce2;
+  overflow: auto;
+  padding: 12px;
+}
+
+pre code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+table {
+  border-collapse: collapse;
+  margin-top: 12px;
+  width: 100%;
+}
+
+th,
+td {
+  border: 1px solid #ccd4dd;
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: #eef3f8;
+}
+
+.callout {
+  background: #f7fbff;
+  border: 1px solid #c9d8eb;
+  border-left: 4px solid #2b6cb0;
+  margin: 16px 0;
+  padding: 10px 12px;
+}
+
+.warning {
+  background: #fff8e6;
+  border-color: #e2c56a;
+  border-left-color: #b7791f;
+}
+
+.compact li {
+  margin: 4px 0;
+}

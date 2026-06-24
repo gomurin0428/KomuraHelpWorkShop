@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>ファイル収集とパス</title>
+  <link rel="stylesheet" href="../styles/help.css">
+</head>
+<body>
+  <header class="page-header">
+    <p class="eyebrow">Files and Paths</p>
+    <h1>ファイル収集とパス</h1>
+    <p class="lead">CHM に入るファイルの決まり方と、相対パスの解決規則です。</p>
+  </header>
+
+  <section>
+    <h2>必ず収集するファイル</h2>
+    <ul>
+      <li><code>[FILES]</code> に列挙されたファイル</li>
+      <li><code>Contents file</code> で指定された <code>.hhc</code></li>
+      <li><code>Index file</code> で指定された <code>.hhk</code></li>
+      <li><code>Default topic</code> で指定された HTML</li>
+    </ul>
+    <p>これらが欠落している場合はコンパイル失敗になります。<code>--allow-missing</code> を指定した場合だけ警告として続行します。</p>
+  </section>
+
+  <section>
+    <h2>リンク収集</h2>
+    <p>既定では、収集済みファイルの中を読み、次の参照先を追加します。</p>
+    <table>
+      <thead>
+        <tr><th>対象</th><th>収集する参照</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>HTML</td><td><code>href</code> と <code>src</code></td></tr>
+        <tr><td>CSS</td><td><code>u&#114;l(...)</code> と <code>@impo&#114;t "file.css"</code></td></tr>
+        <tr><td>HHC / HHK</td><td><code>&lt;param name="Local" value="..."&gt;</code></td></tr>
+      </tbody>
+    </table>
+    <p><code>--no-link-scan</code> を指定するとリンク収集を止め、明示されたファイルだけを格納します。</p>
+  </section>
+
+  <section>
+    <h2>無視するリンク</h2>
+    <p>次のような外部リンクや CHM 内ジャンプは、ローカルファイルとして収集しません。</p>
+    <ul class="compact">
+      <li><code>http:</code>、<code>https:</code>、<code>ftp:</code></li>
+      <li><code>mailto:</code>、<code>tel:</code>、<code>javascript:</code>、<code>data:</code></li>
+      <li><code>mk:@MSITStore:</code>、<code>ms-its:</code>、<code>its:</code></li>
+      <li><code>#section</code> のような同一ページ内アンカー</li>
+    </ul>
+    <p><code>page.html#section</code> や <code>page.html?x=1</code> は、ファイル部分だけを取り出して <code>page.html</code> として扱います。</p>
+  </section>
+
+  <section>
+    <h2>相対パスの基準</h2>
+    <table>
+      <thead>
+        <tr><th>パスの出所</th><th>基準ディレクトリ</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>[FILES]</code>、<code>Contents file</code>、<code>Index file</code>、<code>Default topic</code></td><td>HHP ファイルがあるディレクトリ</td></tr>
+        <tr><td>HTML / CSS / HHC / HHK 内のリンク</td><td>リンクを書いたファイルがあるディレクトリ</td></tr>
+        <tr><td>絶対パス</td><td>ディスク上の絶対パス。ただし CHM 内ではファイル名または HHP からの相対パスに正規化します。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>CHM 内のアーカイブパス</h2>
+    <p>HHP の下にあるファイルは、HHP からの相対パスで CHM に入ります。たとえば <code>docs\help\topics\usage.html</code> は <code>topics/usage.html</code> になります。</p>
+    <p><code>Flat=yes</code> を指定すると、フォルダーを落としてファイル名だけで格納します。HTML、CSS、HHC、HHK 内のローカル参照もファイル名だけに書き換えます。同名ファイルがあるプロジェクトでは重複しやすいため注意してください。</p>
+  </section>
+
+  <section>
+    <h2>確認方法</h2>
+    <pre><code>hhc help.hhp --verbose</code></pre>
+    <p><code>add: topics/usage.html &lt;- C:\...\topics\usage.html</code> のように、CHM 内のパスと元ファイルの対応を確認できます。</p>
+  </section>
+</body>
+</html>

@@ -1,0 +1,55 @@
+# Formal Extraction Ledger
+
+Scope: `src/hhc` CLI compiler, including CLI parsing, HHP parsing, file/link collection, path normalization, encoding detection, metadata/package generation, CHM output publication, warnings/errors, and the current integration harness.
+
+Policy: over-extraction is safer than omission. The "current behavior" column records what the code does now; it is not automatically treated as the desired product specification.
+
+| ID | Type | Source | Current behavior read from code | Human review needed |
+| -- | -- | -- | -- | -- |
+| N-001 | normal | `CliOptions`, `Program` | Help and version modes short-circuit before project loading and return 0. | Confirm whether `/ ?` compatibility and no-project help are intended CLI contracts. |
+| N-002 | normal | `ProjectCompiler.Compile` | Successful compile flows through load, collect, warn, metadata build, CHM write, then summary. | Confirm minimum supported HHW feature set and warning-only degradation. |
+| N-003 | normal | `CollectFiles` | Required HHP files, contents, index, default topic, and explicit files are collected before metadata. | Confirm whether missing contents/index/default topic should always be fatal without `--allow-missing`. |
+| N-004 | normal | `LinkScanner` | HTML/CSS/HHC/HHK links are scanned unless `--no-link-scan` is set; supported attribute, HHC Local param, CSS import, and CSS url syntaxes are extracted as raw targets before cleanup; optional missing links warn. | Confirm whether optional link absence should remain warning-only. |
+| N-005 | normal | `ChmWriter` | Internal CHM streams and uncompressed directory/content are generated in memory/stream form; ITSF/ITSP/PMGL/PMGI header invariants and PMGL directory-entry-to-payload resolution are executable-test checked. | Confirm accepted CHM compatibility baseline against independent readers. |
+| N-006 | normal | `ChmWriter.WriteAtomically` | Output bytes are staged in a same-directory temp file and only then moved/replaced at the final path. | Confirm whether crash consistency requires fsync/parent-directory durability. |
+| N-007 | normal | `WarnForUnsupportedOptions` | Unsupported HHW features warn but do not fail compilation. | Confirm whether any unsupported feature should become a hard error. |
+| N-008 | normal | `CliOptions --no-link-scan` | Link scanning can be disabled; only explicit/project files are included. | Confirm whether `--no-link-scan` should suppress all optional link warnings. |
+| E-001 | event | `CliOptions.Parse` | Unknown options, missing `--out`, missing project arg, or multiple projects return parse failure and process exit 2. | Confirm exact exit code and stderr wording as compatibility surface. |
+| E-002 | event | `HhpProject.Load` | Missing project throws `CompilationException`; process exits 1. | Confirm absolute path disclosure in error text. |
+| E-003 | event | `CollectFiles` | Missing required file records warning and fails unless `--allow-missing`. | Confirm warning plus final error duplication is desired. |
+| E-004 | event | `--allow-missing` | Missing required files are downgraded to warnings and omitted from CHM. | Confirm metadata may still reference omitted default/contents/index paths. |
+| E-005 | event | `CollectFiles` duplicate map | Duplicate archive path for the same source is ignored; conflicting source warns and keeps first. | Confirm first-wins policy under case-insensitive archive comparison. |
+| E-006 | event | `ChmWriter` / filesystem | Output create/replace/write failures exit 1. Existing final output is preserved for temp-write failures and locked target failures. | Confirm behavior under cross-volume, network share, and antivirus lock conditions. |
+| E-007 | event | `BuildEntries` / file reads | Non-link-scan input read failures propagate and fail compilation. | Confirm no retry is desired for transient file locks. |
+| E-008 | event | `ChmWriter` limits | Oversized metadata, single oversized directory entries, and aggregate PMGI directory overflow fail with `CompilationException` before publishing a CHM. | Confirm hard limits and user-facing remediation guidance. |
+| S-001 | state | compiler pipeline | Metadata is built only after file collection; package/output after metadata. | None; encoded as invariant. |
+| S-002 | state | `Program.Main` | Terminal result is one of help/version success, parse error 2, compile error 1, compile success 0. | Confirm no distinct exit code is needed for I/O vs specification errors. |
+| S-003 | state | warnings/errors | Warnings are printed separately from final errors; some warnings survive failure. | Confirm which failure stages should print accumulated warnings. |
+| B-001 | boundary | `ArchivePath.NormalizeForArchive` | Leading `.`/`..` segments are collapsed so CHM archive names do not begin outside the archive root. | Confirm whether outside source files should be allowed at all. |
+| B-002 | boundary | `MakeArchiveRelative` | Project-declared files outside the HHP directory are included by basename only after remediation; duplicate outside basenames warn and keep the first source. | Confirm whether basename-only first-wins is the intended product rule. |
+| B-003 | boundary | `Flat=Yes` | Flat mode stores basename-only archive paths and rewrites local links to basenames while preserving query/fragment suffixes; rewriting is idempotent for tested seeds. | Confirm compatibility with HHW Flat semantics. |
+| B-004 | boundary | `ArchivePath.CleanLink` | External schemes, fragment-only links, and UNC links are ignored; malformed percent escapes keep original spelling. | Confirm whether drive-rooted local links should be ignored or included by filename. |
+| B-005 | boundary | `HhpProject.Load` | Duplicate options are last-wins; blank options behave as omitted; balanced quotes are stripped; unbalanced quotes remain literal; CR-only line endings are parsed. | Confirm exact parser compatibility with Microsoft HTML Help Workshop. |
+| B-006 | boundary | `TextEncodingDetector` | BOM wins; strict UTF-8 is preferred; invalid UTF-8 falls back to declared LCID encoding or current ANSI; CP932 and BOM seeds are executable-test covered. | Confirm current-culture fallback is acceptable and deterministic enough. |
+| IO-001 | external_io | file system reads | Project/input reads use local filesystem. Link-scan read errors are swallowed; required/input reads outside link scan fail. | Confirm silent link-scan read absorption. |
+| IO-002 | external_io | file system writes | Output directory is created before writing; final publication uses filesystem move/replace. | Confirm directory creation side effects on failing compiles. |
+| C-001 | concurrency | output path | There is no explicit inter-process lock; bounded in-process and two-process same-output races leave a structurally valid final CHM with one winner on the tested filesystem. | Decide if same-output double execution needs explicit locking or deterministic conflict errors across supported platforms. |
+| C-002 | concurrency | pipeline | No in-process parallel collection/writing is implemented. | None unless performance work introduces parallelism. |
+| P-001 | persistence | CHM final output | Process-level write failure preserves existing final output; process death after temp creation leaves the existing final output unchanged in the controlled fault-injection test. | Power-loss/fsync durability is not verified. |
+| P-002 | persistence | temp files | Temp cleanup is best effort when staging or publication fails during the same process; process death can leave a stale temp file; an existing stale temp file does not block the next compile and is left untouched. | Decide if stale temp files must be garbage-collected after a later restart. |
+| SEC-001 | security | path handling | Archive namespace is bounded, but source file inclusion may read outside the project when explicitly listed. | Decide trust boundary for HHP files and whether outside file inclusion should be blocked. |
+| SEC-002 | security | signing/auth | No signature, authority, or integrity verification exists for HHP/input files. | Usually acceptable for local CLI, but document threat model. |
+| T-001 | temporal | TLC model | Every modeled scenario eventually reaches `Done`. | Real process cancellation/timeout is not modeled as supported behavior. |
+| U-001 | unwanted | CLI | Invalid CLI input must not load a project or create CHM output. | None. |
+| U-002 | unwanted | project load | Missing project must stop before collection/metadata/output. | None. |
+| U-003 | unwanted | collection | Missing required files must not produce a valid CHM unless `--allow-missing`. | Confirm `--allow-missing` warning wording. |
+| U-004 | unwanted | link scan | Link-scan read failure must not abort compilation, but is currently silent. | Decide if a warning should be added. |
+| U-005 | unwanted | output I/O | Any output failure must not publish a partial final CHM. | Covered by implementation test and TLA invariant. |
+| U-006 | unwanted | path traversal | Parent-relative project paths must not escape the CHM archive namespace. | Source inclusion outside the project remains review-needed. |
+| U-007 | unwanted | malformed links | External/UNC/fragment-only links must not become local filesystem reads. | Drive-rooted links still need review. |
+| U-008 | unwanted | parser ambiguity | Duplicate/blank/quoted HHP options must not produce undefined parser state. | Compatibility review remains. |
+| U-009 | unwanted | encoding | Invalid UTF-8 must not silently corrupt declared-LCID text fields. | Current-culture fallback remains review-needed. |
+| U-010 | unwanted | unsupported features | Unsupported HHW feature flags must not silently disappear without warning. | None. |
+| U-011 | unwanted | retry/cancellation/timeout | No retry, cancellation, or timeout protocol exists; interrupted processes are outside verified behavior. | Decide whether to implement retry/cancellation/timeout. |
+| U-012 | unwanted | double execution | Concurrent compiles to one output are not serialized by application code. | Decide whether to add file locking. |
+| U-013 | unwanted | crash restart | After process death, the final output remains unchanged in the controlled temp-staging fault case, but there is no resume or stale-temp garbage-collection protocol. | Decide whether startup cleanup is required. |

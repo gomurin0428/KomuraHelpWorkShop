@@ -1,0 +1,21 @@
+[OPTIONS]
+Compatibility=1.1 or later
+Compiled file=KomuraHhc.chm
+Contents file=toc.hhc
+Default topic=index.html
+Index file=index.hhk
+Language=0x0411 Japanese
+Title=Komura HTML Help Compiler Help
+
+[FILES]
+index.html
+topics/quickstart.html
+topics/build.html
+topics/usage.html
+topics/project-format.html
+topics/file-collection.html
+topics/encoding.html
+topics/validation.html
+topics/compatibility.html
+topics/troubleshooting.html
+styles/help.css

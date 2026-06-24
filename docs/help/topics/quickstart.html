@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>クイックスタート</title>
+  <link rel="stylesheet" href="../styles/help.css">
+</head>
+<body>
+  <header class="page-header">
+    <p class="eyebrow">Quick Start</p>
+    <h1>クイックスタート</h1>
+    <p class="lead">最小の HHP、HTML、TOC を用意して CHM を生成する流れです。</p>
+  </header>
+
+  <section>
+    <h2>1. フォルダーを用意する</h2>
+    <pre><code>my-help\
+  help.hhp
+  index.html
+  toc.hhc
+  styles\
+    help.css</code></pre>
+  </section>
+
+  <section>
+    <h2>2. HHP を書く</h2>
+    <pre><code>[OPTIONS]
+Compiled file=MyHelp.chm
+Contents file=toc.hhc
+Default topic=index.html
+Language=0x0411 Japanese
+Title=My Help
+
+[FILES]
+index.html
+styles\help.css</code></pre>
+    <div class="callout">
+      <p><code>Language=0x0411 Japanese</code> は、日本語の目次や索引を Windows の HTML Help Viewer で正しく表示するために重要です。</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. HTML を書く</h2>
+    <pre><code>&lt;!doctype html&gt;
+&lt;html lang="ja"&gt;
+&lt;head&gt;
+  &lt;meta charset="utf-8"&gt;
+  &lt;title&gt;My Help&lt;/title&gt;
+  &lt;link rel="stylesheet" h&#114;ef="styles/help.css"&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;h1&gt;My Help&lt;/h1&gt;
+  &lt;p&gt;最初のトピックです。&lt;/p&gt;
+&lt;/body&gt;
+&lt;/html&gt;</code></pre>
+  </section>
+
+  <section>
+    <h2>4. TOC を書く</h2>
+    <pre><code>&lt;!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN"&gt;
+&lt;html&gt;
+&lt;body&gt;
+&lt;ul&gt;
+  &lt;li&gt;&lt;object type="text/sitemap"&gt;
+    &lt;param name="Name" value="概要"&gt;
+    &lt;param name="Local" value="index.html"&gt;
+  &lt;/object&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/body&gt;
+&lt;/html&gt;</code></pre>
+  </section>
+
+  <section>
+    <h2>5. コンパイルする</h2>
+    <pre><code>hhc my-help\help.hhp --verbose</code></pre>
+    <p>成功すると <code>my-help\MyHelp.chm</code> ができます。生成後は <a href="validation.html">検証と配布</a> の手順で中身を確認してください。</p>
+  </section>
+</body>
+</html>

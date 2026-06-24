@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>HHP プロジェクト形式</title>
+  <link rel="stylesheet" href="../styles/help.css">
+</head>
+<body>
+  <header class="page-header">
+    <p class="eyebrow">Project Format</p>
+    <h1>HHP プロジェクト形式</h1>
+    <p class="lead">HTML Help Workshop の HHP 形式のうち、CHM 生成に必要な基本設定を読み取ります。</p>
+  </header>
+
+  <section>
+    <h2>最小構成</h2>
+    <p>日本語ヘルプを作る場合は、まず次の形から始めると確認しやすくなります。</p>
+    <pre><code>[OPTIONS]
+Compatibility=1.1 or later
+Compiled file=MyHelp.chm
+Contents file=toc.hhc
+Index file=index.hhk
+Default topic=index.html
+Language=0x0411 Japanese
+Title=My Application Help
+
+[FILES]
+index.html
+topics\usage.html
+styles\help.css</code></pre>
+  </section>
+
+  <section>
+    <h2>対応する OPTIONS</h2>
+    <table>
+      <thead>
+        <tr><th>項目</th><th>説明</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>Compiled file</code></td><td>出力する CHM ファイル名です。省略時は HHP と同じ名前の <code>.chm</code> になります。</td></tr>
+        <tr><td><code>Contents file</code></td><td>左ペインの目次として使う <code>.hhc</code> です。省略時は簡易 TOC を自動生成します。</td></tr>
+        <tr><td><code>Index file</code></td><td>キーワードタブとして使う <code>.hhk</code> です。省略できます。</td></tr>
+        <tr><td><code>Default topic</code></td><td>CHM を開いたときに最初に表示する HTML です。</td></tr>
+        <tr><td><code>Default Window</code></td><td><code>#WINDOWS</code> に書き込む既定ウィンドウ名です。省略時は <code>main</code> です。</td></tr>
+        <tr><td><code>Default Font</code></td><td>HTML Help Viewer に渡す既定フォント情報です。</td></tr>
+        <tr><td><code>Title</code></td><td>HTML Help Viewer のタイトルに使います。</td></tr>
+        <tr><td><code>Language</code></td><td>LCID と言語名です。日本語では <code>0x0411 Japanese</code> を指定します。</td></tr>
+        <tr><td><code>Flat</code></td><td><code>yes</code> の場合、CHM 内のアーカイブパスをファイル名だけにします。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>読み取り規則</h2>
+    <ul>
+      <li>セクション名とオプション名は大文字小文字を区別しません。</li>
+      <li>空行と、行頭が <code>;</code> の行は無視します。</li>
+      <li><code>[OPTIONS]</code> は <code>key=value</code> 形式で読み取ります。</li>
+      <li><code>[FILES]</code> 以外のセクションも読み込みますが、多くは CHM 生成には使いません。</li>
+      <li>値全体を一重引用符または二重引用符で囲んだ場合は、外側の引用符を取り除きます。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>TOC と Index</h2>
+    <p><code>Contents file</code> と <code>Index file</code> は HTML Help Workshop と同じ <code>text/sitemap</code> の HTML 形式です。各項目の <code>Name</code> が表示名、<code>Local</code> が開くトピックです。</p>
+    <pre><code>&lt;li&gt;&lt;object type="text/sitemap"&gt;
+  &lt;param name="Name" value="使い方"&gt;
+  &lt;param name="Local" value="topics/usage.html"&gt;
+&lt;/object&gt;&lt;/li&gt;</code></pre>
+    <p>日本語の目次や索引が文字化けする場合は <a href="encoding.html">日本語と文字コード</a> を確認してください。</p>
+  </section>
+</body>
+</html>

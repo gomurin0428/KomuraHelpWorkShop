@@ -1,0 +1,100 @@
+using System.Globalization;
+using System.Text;
+
+namespace Komura.Hhc;
+
+internal static class TextEncodingDetector
+{
+    private static readonly Encoding StrictUtf8 = new UTF8Encoding(false, throwOnInvalidBytes: true);
+
+    static TextEncodingDetector()
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+    }
+
+    public static Encoding AnsiEncoding
+    {
+        get
+        {
+            try
+            {
+                return Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.ANSICodePage);
+            }
+            catch
+            {
+                return Encoding.UTF8;
+            }
+        }
+    }
+
+    public static TextFile Read(string path, Encoding? fallbackEncoding = null)
+    {
+        var bytes = File.ReadAllBytes(path);
+        var encoding = Detect(bytes, fallbackEncoding);
+        var preamble = DetectPreamble(bytes);
+        var text = encoding.GetString(bytes);
+        return new TextFile(text.TrimStart('\uFEFF'), encoding, preamble);
+    }
+
+    public static Encoding ForLcid(int lcid)
+    {
+        try
+        {
+            var culture = CultureInfo.GetCultureInfo(lcid);
+            return Encoding.GetEncoding(culture.TextInfo.ANSICodePage);
+        }
+        catch
+        {
+            return AnsiEncoding;
+        }
+    }
+
+    private static byte[] DetectPreamble(ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.StartsWith(new byte[] { 0xEF, 0xBB, 0xBF }))
+        {
+            return new byte[] { 0xEF, 0xBB, 0xBF };
+        }
+
+        if (bytes.StartsWith(new byte[] { 0xFF, 0xFE }))
+        {
+            return new byte[] { 0xFF, 0xFE };
+        }
+
+        if (bytes.StartsWith(new byte[] { 0xFE, 0xFF }))
+        {
+            return new byte[] { 0xFE, 0xFF };
+        }
+
+        return Array.Empty<byte>();
+    }
+    private static Encoding Detect(ReadOnlySpan<byte> bytes, Encoding? fallbackEncoding)
+    {
+        if (bytes.StartsWith(new byte[] { 0xEF, 0xBB, 0xBF }))
+        {
+            return Encoding.UTF8;
+        }
+
+        if (bytes.StartsWith(new byte[] { 0xFF, 0xFE }))
+        {
+            return Encoding.Unicode;
+        }
+
+        if (bytes.StartsWith(new byte[] { 0xFE, 0xFF }))
+        {
+            return Encoding.BigEndianUnicode;
+        }
+
+        try
+        {
+            _ = StrictUtf8.GetString(bytes);
+            return Encoding.UTF8;
+        }
+        catch (DecoderFallbackException)
+        {
+            return fallbackEncoding ?? AnsiEncoding;
+        }
+    }
+}
+
+internal sealed record TextFile(string Text, Encoding Encoding, byte[] Preamble);

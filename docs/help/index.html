@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>Komura HTML Help Compiler Help</title>
+  <link rel="stylesheet" href="styles/help.css">
+</head>
+<body>
+  <header class="page-header">
+    <p class="eyebrow">Komura Help Workshop</p>
+    <h1>Komura HTML Help Compiler</h1>
+    <p class="lead">Microsoft HTML Help Workshop の <code>hhc.exe</code> と同じ用途で使う、ローカル実装の CHM コンパイラです。</p>
+  </header>
+
+  <section>
+    <h2>このヘルプで分かること</h2>
+    <p>この CHM は Komura HTML Help Compiler 自身で生成されています。HHP プロジェクトの作り方、コマンドラインの使い方、ファイル収集の規則、日本語の文字コード、生成物の確認方法をまとめています。</p>
+    <p>最初に試す場合は <a href="topics/quickstart.html">クイックスタート</a> から進めてください。既存の HHP を移植する場合は <a href="topics/project-format.html">HHP プロジェクト形式</a> と <a href="topics/file-collection.html">ファイル収集とパス</a> が入口になります。</p>
+  </section>
+
+  <section>
+    <h2>主な機能</h2>
+    <table>
+      <thead>
+        <tr><th>領域</th><th>内容</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>プロジェクト</td><td><code>.hhp</code> の <code>[OPTIONS]</code>、<code>[FILES]</code>、<code>Contents file</code>、<code>Index file</code>、<code>Default topic</code> を読み取ります。</td></tr>
+        <tr><td>リンク収集</td><td>HTML の <code>href</code> / <code>src</code>、CSS の <code>u&#114;l(...)</code> と <code>@import</code>、HHC/HHK の <code>Local</code> から参照ファイルを追加します。</td></tr>
+        <tr><td>ビューア設定</td><td><code>#SYSTEM</code>、<code>#WINDOWS</code>、<code>#STRINGS</code> を生成し、HTML Help Viewer のタイトル、既定トピック、目次、索引を設定します。</td></tr>
+        <tr><td>日本語</td><td><code>Language</code> の LCID に合わせて HHC/HHK と内部文字列を ANSI コードページへ変換します。日本語は通常 <code>0x0411 Japanese</code> です。</td></tr>
+        <tr><td>CHM コンテナ</td><td>ITSF v3 / ITSP / PMGL / PMGI の非圧縮 CHM を生成します。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>読み進める順番</h2>
+    <ol>
+      <li><a href="topics/quickstart.html">クイックスタート</a> で最小のプロジェクトを作る。</li>
+      <li><a href="topics/build.html">ビルド</a> で実行ファイルを用意する。</li>
+      <li><a href="topics/usage.html">使い方</a> でオプションと終了コードを確認する。</li>
+      <li><a href="topics/validation.html">検証と配布</a> で生成した CHM を確認する。</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2>この版の位置づけ</h2>
+    <p>このコンパイラは、まず Windows の HTML Help Viewer で開ける CHM を安定して生成することを優先しています。LZX 圧縮、全文検索インデックス、Binary TOC / Binary Index はまだ実装していません。詳しくは <a href="topics/compatibility.html">互換性と制限</a> を参照してください。</p>
+  </section>
+</body>
+</html>

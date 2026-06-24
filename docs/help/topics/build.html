@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>ビルド</title>
+  <link rel="stylesheet" href="../styles/help.css">
+</head>
+<body>
+  <header class="page-header">
+    <p class="eyebrow">Build</p>
+    <h1>ビルド</h1>
+    <p class="lead">.NET SDK を使って CLI をビルドします。</p>
+  </header>
+
+  <section>
+    <h2>必要なもの</h2>
+    <ul>
+      <li>.NET 8 SDK</li>
+      <li>Windows の HTML Help Viewer で確認する場合は <code>hh.exe</code></li>
+      <li>生成した CHM を開く Windows 環境</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Debug ビルド</h2>
+    <p>開発中は通常の <code>dotnet build</code> で十分です。</p>
+    <pre><code>dotnet build .\src\hhc\hhc.csproj</code></pre>
+    <p>Debug ビルドでは次の実行ファイルが生成されます。</p>
+    <pre><code>src\hhc\bin\Debug\net8.0\hhc.exe</code></pre>
+  </section>
+
+  <section>
+    <h2>Release ビルド</h2>
+    <p>配布や手元のツール置き場へコピーする場合は Release ビルドを使います。</p>
+    <pre><code>dotnet build .\src\hhc\hhc.csproj -c Release</code></pre>
+    <p>実行ファイルは次に生成されます。</p>
+    <pre><code>src\hhc\bin\Release\net8.0\hhc.exe</code></pre>
+  </section>
+
+  <section>
+    <h2>動作確認</h2>
+    <p>ビルド後にバナーとヘルプを確認します。</p>
+    <pre><code>.\src\hhc\bin\Debug\net8.0\hhc.exe --version
+.\src\hhc\bin\Debug\net8.0\hhc.exe --help</code></pre>
+  </section>
+
+  <section>
+    <h2>自己ヘルプを生成する</h2>
+    <p>このヘルプファイルも同じコンパイラで生成できます。</p>
+    <pre><code>.\src\hhc\bin\Debug\net8.0\hhc.exe .\docs\help\KomuraHhc.hhp --verbose</code></pre>
+    <p>成功すると <code>docs\help\KomuraHhc.chm</code> が更新されます。</p>
+  </section>
+</body>
+</html>
