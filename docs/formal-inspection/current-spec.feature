@@ -2,6 +2,8 @@ Feature: Existing-code formal inspection specification for Komura HHC
   This feature records the behavior inferred from the current implementation.
   It is not an assertion that every behavior is desirable. Scenarios marked
   "human review" require a product or compatibility decision.
+  Silent link-scan read absorption and explicit outside source inclusion are
+  accepted compatibility targets for the reference compiler behavior.
 
   Rule: CLI terminal modes stop before project loading
 
@@ -51,7 +53,7 @@ Feature: Existing-code formal inspection specification for Komura HHC
       Then no exception is propagated from the link scanner
       And no outgoing links are collected from that file
       And compilation may continue
-      But human review is required to decide whether silent absorption should instead produce a warning
+      And no warning is required for the absorbed link-scan read failure
 
   Rule: Paths are normalized before becoming CHM archive names
 
@@ -62,7 +64,7 @@ Feature: Existing-code formal inspection specification for Komura HHC
       Then the files may be read from their source locations
       And each outside file is stored under its basename in the CHM archive
       And parent or sibling directory names are not used as CHM archive directories
-      But human review is required to decide whether HHP projects should be allowed to read outside the project directory at all
+      And explicit outside source inclusion is allowed as a compatibility behavior
 
     Scenario: Outside project basename collisions warn and keep the first source
       Given two explicit outside project files have the same basename

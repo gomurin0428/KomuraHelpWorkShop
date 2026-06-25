@@ -9,7 +9,7 @@ Each statement is derived from the current implementation, then tagged as either
 | N-001 | The system SHALL return exit code 0 and avoid project loading when invoked in help or version mode. | accepted current behavior |
 | N-002 | WHEN a valid HHP project is compiled, the system SHALL load the project, collect files, build metadata, build a CHM package, publish output, and print a success summary. | accepted current behavior |
 | N-003 | WHEN required project-declared files are present, the system SHALL include them in the CHM under normalized archive paths. | accepted current behavior |
-| N-004 | WHERE link scanning is enabled, the system SHALL collect local links from HTML, CSS, HHC, and HHK files as optional inputs. | human review: silent read failures |
+| N-004 | WHERE link scanning is enabled, the system SHALL collect local links from HTML, CSS, HHC, and HHK files as optional inputs. | accepted compatibility behavior |
 | N-005 | The system SHALL emit required internal CHM streams for uncompressed CHM output. | accepted current behavior |
 | N-006 | WHEN CHM bytes are written, the system SHALL stage bytes in a same-directory temporary file before publishing the final output path. | accepted current behavior after remediation |
 | N-007 | WHEN unsupported HHW-compatible features are present, the system SHALL warn and continue if the project is otherwise compilable. | human review: warning-only policy |
@@ -30,9 +30,9 @@ Each statement is derived from the current implementation, then tagged as either
 | U-001 | N-001/E-001 | IF CLI input is empty, malformed, duplicated, or has a missing option value, THEN the system SHALL not load a project or create a CHM. | tested |
 | U-002 | N-002/E-002 | IF project loading fails, THEN the system SHALL not collect files, build metadata, or publish output. | TLA + tested |
 | U-003 | N-003/E-003 | IF required file collection fails without `--allow-missing`, THEN the system SHALL not publish a CHM. | TLA + tested |
-| U-004 | N-004 | IF link scanning cannot read a scannable optional file, THEN the system SHALL treat it as having no outgoing links and continue. | TLA; human review for warning |
+| U-004 | N-004 | IF link scanning cannot read a scannable optional file, THEN the system SHALL treat it as having no outgoing links and continue without warning. | TLA + tested; accepted compatibility behavior |
 | U-005 | N-006/E-006 | IF temp-file writing, final move, or final replace fails, THEN the system SHALL not leave a partial final CHM. | TLA + tested |
-| U-006 | N-003/B-002 | IF a project-declared source path resolves outside the HHP directory, THEN the system SHALL use only the source basename as the CHM archive path. | TLA + tested after remediation |
+| U-006 | N-003/B-002 | IF a project-declared source path resolves outside the HHP directory, THEN the system SHALL still read that explicit source and use only the source basename as the CHM archive path. | TLA + tested after remediation; accepted compatibility behavior |
 | U-007 | N-004/B-004 | IF a discovered link is external, UNC, fragment-only, or empty, THEN the system SHALL not treat it as a local input file. | tested |
 | U-008 | B-005 | IF HHP options are duplicated, blank, balanced-quoted, or unbalanced-quoted, THEN the system SHALL parse them deterministically. | tested |
 | U-009 | B-006 | IF text bytes are invalid UTF-8 but a language encoding is declared, THEN the system SHALL decode with that declared encoding. | tested for CP932 seed; broader fuzz/property recommended |

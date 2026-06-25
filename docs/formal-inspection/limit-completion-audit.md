@@ -28,10 +28,10 @@ documented non-applicability decision, or a delegated verification path.
 
 | Gate | Result |
 | -- | -- |
-| Implementation tests | 41 passed with `dotnet run --project tests\hhc.IntegrationTests\hhc.IntegrationTests.csproj -p:UseAppHost=false` |
+| Implementation tests | 59 passed with `dotnet run --project tests\hhc.IntegrationTests\hhc.IntegrationTests.csproj -p:UseAppHost=false` |
 | Inspection TLA | pass with `python tools\run_tla_inspection_model.py` |
-| Broader TLA suite | 97 passed with `python tools\run_tla_models.py` |
-| TLA coverage audit | 98 logs checked, 0 unexpected issues with `python tools\audit_tla_coverage.py` |
+| Broader TLA suite | 107 passed with `python tools\run_tla_models.py` |
+| TLA coverage audit | 108 logs checked, 0 unexpected issues with `python tools\audit_tla_coverage.py` |
 | Mutation oracle | 23 mutants: 20 killed, 3 equivalent, 0 true survivor |
 | Implementation red/green | Outside-project archive-name mutation failed the expected archive-namespace tests, then passed again after restore |
 

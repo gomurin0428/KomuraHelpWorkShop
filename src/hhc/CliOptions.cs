@@ -40,7 +40,6 @@ internal sealed class CliOptions
                 case "--out":
                     if (i + 1 >= args.Count)
                     {
-                        error.WriteLine("error: --out requires a path.");
                         return null;
                     }
 
@@ -63,13 +62,11 @@ internal sealed class CliOptions
                 default:
                     if (arg.StartsWith("-", StringComparison.Ordinal))
                     {
-                        error.WriteLine($"error: unknown option: {arg}");
                         return null;
                     }
 
                     if (projectPath is not null)
                     {
-                        error.WriteLine("error: only one .hhp project can be compiled at a time.");
                         return null;
                     }
 
@@ -80,7 +77,6 @@ internal sealed class CliOptions
 
         if (projectPath is null)
         {
-            error.WriteLine("error: missing .hhp project path.");
             return null;
         }
 

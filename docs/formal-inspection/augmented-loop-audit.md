@@ -14,7 +14,7 @@ protocol or state.
 | Retry/cancel/timeout | no implemented protocol | Absence is explicit in `NoRetryPolicy`, `NoExplicitCancellationOrTimeoutPath`, and `U-011`/`U-012`; product review is still required. |
 | External I/O | yes | Filesystem reads, output-directory creation, temp-file staging, replace/move, and locked-output failures are modeled or tested. |
 | Persistence/recovery | partial | Final-output preservation, stale-temp non-interference, and process death after temp creation are tested; fsync/power loss and temp GC are not verified. |
-| Security/integrity | partial | Archive namespace safety is modeled/tested. Trusted HHP/source-file policy and signature/auth are outside current implementation. |
+| Security/integrity | partial | Archive namespace safety is modeled/tested. Explicit outside source inclusion is accepted for reference-compiler compatibility; signature/auth and sandboxing untrusted HHP manifests are outside current implementation. |
 | Protocol/file format | yes | HHP parsing and CHM structural/directory payload behavior are covered by use-case TLA and integration tests. |
 | UI/user operation order | no | This is a CLI compiler; no UI states were found. |
 | Windows/OS API | partial | Path, lock, replace/move, and current ANSI fallback are relevant. COM/service/registry/device checks are not applicable. |
@@ -42,7 +42,7 @@ protocol or state.
 | U-001 | N-001/E-001 | invalid input | Invalid CLI, duplicate project args, or missing option value? | Stop before project load and output creation. | `CliTerminal`, `EarlyFailuresStopBeforeMetadata` | CLI integration tests |
 | U-002 | N-002/E-002 | failure | Project file missing? | Stop before collection/metadata/output. | `LoadProject` | `MissingProjectExitsOne` |
 | U-003 | N-003/E-003 | failure | Required input missing without `--allow-missing`? | No valid CHM is published. | `CollectFiles`, `NoSuccessfulChmOnError` | `MissingRequiredFileFailsByDefault` |
-| U-004 | N-004 | external I/O failure | Optional link-scan read fails? | Current code absorbs it as no outgoing links; warning policy needs review. | `ScanLinks`, `LinkReadFailureIsAbsorbedWithoutWarning` | `LinkScannerReadFailureIsAbsorbed` |
+| U-004 | N-004 | external I/O failure | Optional link-scan read fails? | Compatibility behavior absorbs it as no outgoing links without warning. | `ScanLinks`, `LinkReadFailureIsAbsorbedWithoutWarning` | `LinkScannerReadFailureIsAbsorbed` |
 | U-005 | N-006/E-006 | external I/O failure | Temp write, final move, or replace fails? | No partial final CHM; existing output preserved where present. | `WriteOutput`, `DesiredFailureAtomicity` | output failure tests |
 | U-006 | N-003/B-002 | security/path traversal | Project path resolves outside HHP dir? | Archive namespace stays basename-only and never escapes. | `ArchiveNamespaceNeverEscapes`, `OutsideProjectPathUsesBasenameArchiveName` | path property/integration tests |
 | U-007 | N-004/B-004 | invalid input | External, UNC, empty, or fragment-only link? | Do not collect it as a local file. | link use-case TLA | link cleanup tests |
@@ -63,7 +63,7 @@ protocol or state.
 | 3.4 concurrency/race | partial | `ConcurrentWritersLeaveValidFinalOutput`, `CrossProcessSameOutputCompilesLeaveValidFinalOutput`, `U-011` | No explicit output lock exists; high-volume/platform race policy remains a product decision. |
 | 3.5 external I/O/OS/network | yes for filesystem, no network | File read/write/move/replace failures, locked output, stale temp, process-death tests | Network shares, cross-volume moves, permissions matrix, and storage-controller faults are delegated. |
 | 3.6 persistence/transaction/recovery | partial | Same-directory temp staging, preservation tests, `DesiredFailureAtomicity`, crash-after-temp test | Fsync, parent-directory durability, and automatic stale-temp garbage collection are not verified. |
-| 3.7 security/verification/authorization | partial | `ArchiveNamespaceNeverEscapes`, basename-only outside project behavior, path fuzz seeds | No signature, auth, tenant, owner, or trust boundary enforcement exists in this compiler. |
+| 3.7 security/verification/authorization | partial | `ArchiveNamespaceNeverEscapes`, basename-only outside project behavior, path fuzz seeds | Explicit outside source inclusion is accepted for trusted local HHP compatibility; no signature, auth, tenant, owner, or sandbox enforcement exists in this compiler. |
 | 3.8 resource/performance/degradation | partial | Oversized PMGL/PMGI tests, UC062/UC063, unsupported-feature warning behavior | Soak/load/resource exhaustion and memory pressure are delegated to stress/fault tests. |
 | 3.9 UI/user ops | not applicable | CLI-only target; help/version/argument-error short-circuit behavior covered | No GUI operation order to verify. |
 | 3.10 version/compat/config | partial | Unsupported HHW options warn, HHP duplicate/quoted/truthy options, encoding fallback seeds | Complete HTML Help Workshop compatibility remains differential-test work. |
@@ -102,10 +102,10 @@ Current oracle result: 23 mutants, 20 killed, 3 equivalent, 0 true survivor.
 
 | Check | Result |
 | -- | -- |
-| Correct implementation | `dotnet run --project tests\hhc.IntegrationTests\hhc.IntegrationTests.csproj -p:UseAppHost=false` passed all 41 tests. |
+| Correct implementation | `dotnet run --project tests\hhc.IntegrationTests\hhc.IntegrationTests.csproj -p:UseAppHost=false` passed all 59 tests. |
 | Intentional break | Temporarily changed `ProjectCompiler.MakeArchiveRelative` to use `originalPath` for outside project files instead of `Path.GetFileName(sourcePath)`. |
 | Expected red | `outside project paths stay inside archive namespace` failed because a sibling temp directory name appeared in CHM bytes; `outside project basename collisions warn and keep first` failed because collision detection no longer observed basename convergence. |
-| Restore | Restored the basename-only implementation and reran the same command; all 41 tests passed again. |
+| Restore | Restored the basename-only implementation and reran the same command; all 59 tests passed again. |
 | Caveat | MSBuild emitted stale apphost/cache delete warnings on this Windows workspace. The test harness passes `-p:UseAppHost=false` for nested target CLI runs so the assertions exercise the rebuilt DLL path. |
 
 ## Independent Exit Checks
@@ -129,5 +129,5 @@ boundaries, CHM structural/payload invariants, stale-temp non-interference, and
 bounded same-output race final validity.
 
 Not verified: power-loss durability, stale-temp garbage collection, exhaustive
-path/link/encoding grammars, independent CHM reader compatibility, untrusted HHP
-security policy, and retry/cancel/timeout semantics.
+path/link/encoding grammars, independent CHM reader compatibility, sandboxing of
+untrusted HHP manifests, and retry/cancel/timeout semantics.
