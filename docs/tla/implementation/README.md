@@ -15,8 +15,9 @@ This suite expresses the workflow the user asked for:
    Gherkin obligations.
 
 The model also checks abnormal-case coverage explicitly: argument errors,
-compile errors, warning-only success cases, and failure-without-CHM cases must
-all be present in the Gherkin-derived obligations and must keep the expected
+argument errors, compile errors, missing-project exits, partial-output success
+cases, warning-bearing CHM outputs, and failure-without-CHM cases must all be
+present in the Gherkin-derived obligations and must keep the expected
 exit-code/CHM-creation behavior in the implementation model.
 
 `ApiExceptionConformance.tla` injects exceptions at modeled implementation API

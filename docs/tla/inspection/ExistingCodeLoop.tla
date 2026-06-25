@@ -69,13 +69,13 @@ Phases == {"Start", "ProjectLoaded", "FilesCollected", "LinksScanned", "Metadata
 ArchiveNamespaces == {"None", "InsideRelative", "BasenameOnly", "Escaped"}
 OutputStates == {"Absent", "Existing", "ValidChm", "Partial"}
 ErrorKinds == {"None", "ArgError", "MissingProject", "MissingRequired", "OutputCreateError", "WriteError"}
-WarningTags == {"file not found", "generated toc", "unsupported feature"}
+WarningTags == {"HHC5003", "unsupported feature"}
 LinkTags == {"explicit-root", "linked-html", "unreadable-linked-html"}
 VisitedTags == {"Start", "CliTerminal", "ProjectLoaded", "FilesCollected", "LinksScanned", "MetadataBuilt", "PackageBuilt", "OutputOpened", "Done"}
 
 CliTerminalScenarios == {"Help", "ArgError"}
 CompileScenarios == Scenarios \ CliTerminalScenarios
-ErrorScenarios == {"ArgError", "MissingProject", "MissingRequired", "OutputCreateFailure", "WriteFailureBeforePublish"}
+ErrorScenarios == {"ArgError", "MissingProject", "OutputCreateFailure", "WriteFailureBeforePublish"}
 SuccessScenarios == Scenarios \ ErrorScenarios
 ExternalAbortScenarios == {}
 
@@ -86,30 +86,29 @@ InitialOutput(s) ==
 
 ExpectedExit(s) ==
   CASE
-    s = "ArgError" -> 2
-  [] s \in {"MissingProject", "MissingRequired", "OutputCreateFailure", "WriteFailureBeforePublish"} -> 1
-  [] OTHER -> 0
+    s \in {"Help", "ArgError"} -> 24
+  [] s \in {"MissingProject", "MissingRequired", "AllowMissing"} -> 0
+  [] s \in {"OutputCreateFailure", "WriteFailureBeforePublish"} -> 1
+  [] OTHER -> 1
 
 ExpectedError(s) ==
   CASE
     s = "ArgError" -> "ArgError"
   [] s = "MissingProject" -> "MissingProject"
-  [] s = "MissingRequired" -> "MissingRequired"
+  [] s = "MissingRequired" -> "None"
   [] s = "OutputCreateFailure" -> "OutputCreateError"
   [] s = "WriteFailureBeforePublish" -> "WriteError"
   [] OTHER -> "None"
 
 ExpectedWarnings(s) ==
   CASE
-    s = "MissingRequired" -> {"file not found"}
-  [] s = "AllowMissing" -> {"file not found", "generated toc"}
-  [] s = "UnsupportedWarning" -> {"generated toc", "unsupported feature"}
-  [] s \in {"Success", "LinkReadFailure", "OutsideProjectPath", "OutputCreateFailure", "WriteFailureBeforePublish"} -> {"generated toc"}
+    s \in {"MissingRequired", "AllowMissing"} -> {"HHC5003"}
+  [] s = "UnsupportedWarning" -> {"unsupported feature"}
   [] OTHER -> {}
 
 ExpectedOutput(s) ==
   CASE
-    s \in {"Success", "AllowMissing", "LinkReadFailure", "UnsupportedWarning", "OutsideProjectPath"} -> "ValidChm"
+    s \in {"Success", "MissingRequired", "AllowMissing", "LinkReadFailure", "UnsupportedWarning", "OutsideProjectPath"} -> "ValidChm"
   [] s = "WriteFailureBeforePublish" -> "Existing"
   [] s = "OutputCreateFailure" -> "Existing"
   [] OTHER -> InitialOutput(s)
@@ -124,7 +123,6 @@ ExpectedVisited(s) ==
   CASE
     s \in CliTerminalScenarios -> {"Start", "CliTerminal", "Done"}
   [] s = "MissingProject" -> {"Start", "ProjectLoaded", "Done"}
-  [] s = "MissingRequired" -> {"Start", "ProjectLoaded", "FilesCollected", "Done"}
   [] s \in {"OutputCreateFailure"} -> {"Start", "ProjectLoaded", "FilesCollected", "LinksScanned", "MetadataBuilt", "PackageBuilt", "Done"}
   [] s \in {"WriteFailureBeforePublish"} -> {"Start", "ProjectLoaded", "FilesCollected", "LinksScanned", "MetadataBuilt", "PackageBuilt", "OutputOpened", "Done"}
   [] OTHER -> {"Start", "ProjectLoaded", "FilesCollected", "LinksScanned", "MetadataBuilt", "PackageBuilt", "OutputOpened", "Done"}
@@ -133,7 +131,6 @@ ExpectedTransitionCount(s) ==
   CASE
     s \in CliTerminalScenarios -> 1
   [] s = "MissingProject" -> 1
-  [] s = "MissingRequired" -> 2
   [] s = "OutputCreateFailure" -> 6
   [] OTHER -> 7
 
@@ -172,7 +169,7 @@ LoadProject ==
   /\ scenario \in CompileScenarios
   /\ IF scenario = "MissingProject" THEN
        /\ phase' = "Done"
-       /\ exitCode' = 1
+       /\ exitCode' = 0
        /\ errorKind' = "MissingProject"
        /\ warnings' = {}
        /\ pendingLinks' = {}
@@ -188,33 +185,20 @@ LoadProject ==
 
 CollectFiles ==
   /\ phase = "ProjectLoaded"
-  /\ IF scenario = "MissingRequired" THEN
-       /\ phase' = "Done"
-       /\ filesCollected' = TRUE
-       /\ archiveNamespace' = "None"
-       /\ exitCode' = 1
-       /\ errorKind' = "MissingRequired"
-       /\ warnings' = {"file not found"}
-       /\ pendingLinks' = {}
-       /\ transitionCount' = transitionCount + 1
-       /\ visited' = visited \cup {"FilesCollected", "Done"}
-       /\ UNCHANGED <<metadataBuilt, packageBuilt, outputOpened, outputState, linkReadAbsorbed, retryCount>>
-     ELSE
-       /\ phase' = "FilesCollected"
-       /\ filesCollected' = TRUE
-       /\ archiveNamespace' =
-            IF scenario = "OutsideProjectPath"
-            THEN "BasenameOnly"
-            ELSE "InsideRelative"
-       /\ warnings' = IF scenario = "AllowMissing" THEN {"file not found"} ELSE {}
-       /\ pendingLinks' =
-            IF scenario = "LinkReadFailure"
-            THEN {"unreadable-linked-html"}
-            ELSE {"linked-html"}
-       /\ transitionCount' = transitionCount + 1
-       /\ visited' = visited \cup {"FilesCollected"}
-       /\ UNCHANGED <<metadataBuilt, packageBuilt, outputOpened, outputState, exitCode, errorKind, linkReadAbsorbed, retryCount>>
-  /\ UNCHANGED scenario
+  /\ phase' = "FilesCollected"
+  /\ filesCollected' = TRUE
+  /\ archiveNamespace' =
+       IF scenario = "OutsideProjectPath" THEN "BasenameOnly"
+       ELSE IF scenario = "MissingRequired" THEN "None"
+       ELSE "InsideRelative"
+  /\ warnings' = IF scenario \in {"MissingRequired", "AllowMissing"} THEN {"HHC5003"} ELSE {}
+  /\ pendingLinks' =
+       IF scenario = "MissingRequired" THEN {}
+       ELSE IF scenario = "LinkReadFailure" THEN {"unreadable-linked-html"}
+       ELSE {"linked-html"}
+  /\ transitionCount' = transitionCount + 1
+  /\ visited' = visited \cup {"FilesCollected"}
+  /\ UNCHANGED <<scenario, metadataBuilt, packageBuilt, outputOpened, outputState, exitCode, errorKind, linkReadAbsorbed, retryCount>>
 
 ScanLinks ==
   /\ phase = "FilesCollected"
@@ -229,10 +213,7 @@ BuildMetadata ==
   /\ phase = "LinksScanned"
   /\ phase' = "MetadataBuilt"
   /\ metadataBuilt' = TRUE
-  /\ warnings' =
-       IF scenario = "UnsupportedWarning"
-       THEN warnings \cup {"generated toc", "unsupported feature"}
-       ELSE warnings \cup {"generated toc"}
+  /\ warnings' = IF scenario = "UnsupportedWarning" THEN warnings \cup {"unsupported feature"} ELSE warnings
   /\ transitionCount' = transitionCount + 1
   /\ visited' = visited \cup {"MetadataBuilt"}
   /\ UNCHANGED <<scenario, filesCollected, archiveNamespace, packageBuilt, outputOpened, outputState, exitCode, errorKind, pendingLinks, linkReadAbsorbed, retryCount>>
@@ -271,7 +252,7 @@ WriteOutput ==
        /\ errorKind' = "WriteError"
        /\ outputState' = "Existing"
      ELSE
-       /\ exitCode' = 0
+       /\ exitCode' = IF scenario \in {"MissingRequired", "AllowMissing"} THEN 0 ELSE 1
        /\ errorKind' = "None"
        /\ outputState' = "ValidChm"
   /\ transitionCount' = transitionCount + 1
@@ -317,7 +298,7 @@ TypeOK ==
   /\ packageBuilt \in BOOLEAN
   /\ outputOpened \in BOOLEAN
   /\ outputState \in OutputStates
-  /\ exitCode \in {-1, 0, 1, 2}
+  /\ exitCode \in {-1, 0, 1, 24}
   /\ errorKind \in ErrorKinds
   /\ warnings \in SUBSET WarningTags
   /\ pendingLinks \in SUBSET LinkTags
@@ -344,17 +325,17 @@ FinalOutcomeMatchesCurrentCode ==
 TerminalTransitionCountMatchesPath ==
   phase = "Done" => transitionCount = ExpectedTransitionCount(scenario)
 
-NoSuccessfulChmOnError ==
-  phase = "Done" /\ exitCode # 0 => outputState # "ValidChm"
+FatalErrorDoesNotCreateChm ==
+  phase = "Done" /\ scenario \in {"ArgError", "MissingProject", "OutputCreateFailure", "WriteFailureBeforePublish"} => outputState # "ValidChm"
 
 SuccessRequiresPackageAndOutputOpen ==
   phase = "Done" /\ outputState = "ValidChm" =>
-    /\ exitCode = 0
+    /\ exitCode \in {0, 1}
     /\ packageBuilt
     /\ outputOpened
 
 EarlyFailuresStopBeforeMetadata ==
-  phase = "Done" /\ scenario \in {"Help", "ArgError", "MissingProject", "MissingRequired"} =>
+  phase = "Done" /\ scenario \in {"Help", "ArgError", "MissingProject"} =>
     /\ ~metadataBuilt
     /\ ~packageBuilt
     /\ ~outputOpened
@@ -383,7 +364,7 @@ WriteFailureBeforePublishPreservesExistingOutput ==
 LinkReadFailureIsAbsorbedWithoutWarning ==
   phase = "Done" /\ scenario = "LinkReadFailure" =>
     /\ linkReadAbsorbed
-    /\ "file not found" \notin warnings
+    /\ "HHC5003" \notin warnings
     /\ outputState = "ValidChm"
 
 NoPendingLinksAtTerminalState ==
@@ -391,7 +372,7 @@ NoPendingLinksAtTerminalState ==
 
 UnsupportedFeaturesWarnButSucceed ==
   phase = "Done" /\ scenario = "UnsupportedWarning" =>
-    /\ exitCode = 0
+    /\ exitCode = 1
     /\ "unsupported feature" \in warnings
     /\ outputState = "ValidChm"
 
@@ -402,7 +383,7 @@ NoRetryPolicy ==
   retryCount <= 0
 
 DesiredFailureAtomicity ==
-  phase = "Done" /\ exitCode # 0 => outputState # "Partial"
+  phase = "Done" /\ scenario \in {"OutputCreateFailure", "WriteFailureBeforePublish"} => outputState # "Partial"
 
 EventuallyDone == <> (phase = "Done")
 

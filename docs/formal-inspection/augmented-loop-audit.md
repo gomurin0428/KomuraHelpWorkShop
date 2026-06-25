@@ -40,8 +40,8 @@ protocol or state.
 | Derived ID | Parent | Perspective | Question | Expected safe behavior | TLA+ target | Test target |
 | -- | -- | -- | -- | -- | -- | -- |
 | U-001 | N-001/E-001 | invalid input | Invalid CLI, duplicate project args, or missing option value? | Stop before project load and output creation. | `CliTerminal`, `EarlyFailuresStopBeforeMetadata` | CLI integration tests |
-| U-002 | N-002/E-002 | failure | Project file missing? | Stop before collection/metadata/output. | `LoadProject` | `MissingProjectExitsOne` |
-| U-003 | N-003/E-003 | failure | Required input missing without `--allow-missing`? | No valid CHM is published. | `CollectFiles`, `NoSuccessfulChmOnError` | `MissingRequiredFileFailsByDefault` |
+| U-002 | N-002/E-002 | failure | Project file missing? | Stop before collection/metadata/output while returning the HHC-compatible exit status. | `LoadProject` | `MissingProjectExitsZero` |
+| U-003 | N-003/E-003 | partial output | Required input missing without `--allow-missing`? | Omit the missing payload, emit HHC5003, publish a partial CHM, and return the HHC-compatible exit status. | `CollectFiles`, `FinalOutcomeMatchesCurrentCode` | `MissingRequiredFileEmitsPartialChm` |
 | U-004 | N-004 | external I/O failure | Optional link-scan read fails? | Compatibility behavior absorbs it as no outgoing links without warning. | `ScanLinks`, `LinkReadFailureIsAbsorbedWithoutWarning` | `LinkScannerReadFailureIsAbsorbed` |
 | U-005 | N-006/E-006 | external I/O failure | Temp write, final move, or replace fails? | No partial final CHM; existing output preserved where present. | `WriteOutput`, `DesiredFailureAtomicity` | output failure tests |
 | U-006 | N-003/B-002 | security/path traversal | Project path resolves outside HHP dir? | Archive namespace stays basename-only and never escapes. | `ArchiveNamespaceNeverEscapes`, `OutsideProjectPathUsesBasenameArchiveName` | path property/integration tests |
@@ -104,7 +104,7 @@ Current oracle result: 23 mutants, 20 killed, 3 equivalent, 0 true survivor.
 | -- | -- |
 | Correct implementation | `dotnet run --project tests\hhc.IntegrationTests\hhc.IntegrationTests.csproj -p:UseAppHost=false` passed all 59 tests. |
 | Intentional break | Temporarily changed `ProjectCompiler.MakeArchiveRelative` to use `originalPath` for outside project files instead of `Path.GetFileName(sourcePath)`. |
-| Expected red | `outside project paths stay inside archive namespace` failed because a sibling temp directory name appeared in CHM bytes; `outside project basename collisions warn and keep first` failed because collision detection no longer observed basename convergence. |
+| Expected red | `outside project paths stay inside archive namespace` failed because a sibling temp directory name appeared in CHM bytes; `outside project basename collisions keep last` failed because basename convergence no longer preserved the expected active payload. |
 | Restore | Restored the basename-only implementation and reran the same command; all 59 tests passed again. |
 | Caveat | MSBuild emitted stale apphost/cache delete warnings on this Windows workspace. The test harness passes `-p:UseAppHost=false` for nested target CLI runs so the assertions exercise the rebuilt DLL path. |
 

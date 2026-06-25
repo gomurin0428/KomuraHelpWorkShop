@@ -57,7 +57,7 @@ Scenarios == {scenarios}
 AllPhases == {all_phases}
 AllCliModes == {tla_set({"Unset", "Help", "Version", "ArgError", "Compile"})}
 AllProjectStates == {tla_set({"NotLoaded", "Loaded", "Missing", "Skipped"})}
-AllExitCodes == {{-1, 0, 1, 2}}
+AllExitCodes == {{-1, 0, 1, 24}}
 
 {case_operator("SpecCliMode", lambda uc: tla_string(uc.cli_mode), tla_string("Unknown"))}
 
@@ -89,11 +89,13 @@ AllExitCodes == {{-1, 0, 1, 2}}
 
 def implementation_model_text() -> str:
     scenarios = tla_set(uc.name for uc in CASES)
-    arg_error_scenarios = tla_set(uc.name for uc in CASES if uc.exit_code == 2)
-    compile_error_scenarios = tla_set(uc.name for uc in CASES if uc.exit_code == 1)
+    arg_error_scenarios = tla_set(uc.name for uc in CASES if uc.cli_mode == "ArgError")
+    compile_error_scenarios = tla_set(uc.name for uc in CASES if uc.cli_mode == "Compile" and uc.project_state != "Missing" and not uc.chm_created and uc.exit_code == 1)
+    missing_project_scenarios = tla_set(uc.name for uc in CASES if uc.project_state == "Missing")
     warning_scenarios = tla_set(uc.name for uc in CASES if uc.warnings)
-    failure_without_chm_scenarios = tla_set(uc.name for uc in CASES if uc.exit_code != 0 and not uc.chm_created)
-    warning_success_scenarios = tla_set(uc.name for uc in CASES if uc.exit_code == 0 and uc.warnings)
+    failure_without_chm_scenarios = tla_set(uc.name for uc in CASES if not uc.chm_created)
+    partial_output_scenarios = tla_set(uc.name for uc in CASES if uc.chm_created and uc.exit_code == 0)
+    warning_success_scenarios = tla_set(uc.name for uc in CASES if uc.chm_created and uc.warnings)
     all_collection_tags = tla_set(set().union(*(set(uc.collection_tags) for uc in CASES)))
     all_archive = tla_set(set().union(*(set(uc.archive) for uc in CASES)))
     all_metadata = tla_set(set().union(*(set(uc.metadata) for uc in CASES)))
@@ -153,8 +155,10 @@ TerminalCliModes == {{"Help", "Version", "ArgError"}}
 ImplScenarios == {scenarios}
 ArgErrorScenarios == {arg_error_scenarios}
 CompileErrorScenarios == {compile_error_scenarios}
+MissingProjectScenarios == {missing_project_scenarios}
 WarningScenarios == {warning_scenarios}
 FailureWithoutChmScenarios == {failure_without_chm_scenarios}
+PartialOutputScenarios == {partial_output_scenarios}
 WarningSuccessScenarios == {warning_success_scenarios}
 ImplCollectionTags == {all_collection_tags}
 ImplArchivePaths == {all_archive}
@@ -317,7 +321,7 @@ Spec == Init /\\ [][Next]_vars /\\ WF_vars(Next)
 
 TypeOK ==
   /\\ scenario \\in ImplScenarios
-  /\\ phase \\in {{"Start", "CliParsed", "ProjectLoaded", "FilesCollected", "MetadataBuilt", "Done"}}
+  /\\ phase \\in {{"Start", "CliParsed", "ProjectLoaded", "ProjectMissing", "FilesCollected", "MetadataBuilt", "Done"}}
   /\\ cliMode \\in AllCliModes
   /\\ projectState \\in AllProjectStates
   /\\ collectionTags \\in SUBSET ImplCollectionTags
@@ -353,8 +357,8 @@ ImplementationStageDiscipline ==
   /\\ phase = "FilesCollected" => visited = {{"Start", "CliParsed", "ProjectLoaded", "FilesCollected"}}
   /\\ phase = "MetadataBuilt" => visited = {{"Start", "CliParsed", "ProjectLoaded", "FilesCollected", "MetadataBuilt"}}
 
-NoErrorCreatesChm ==
-  phase = "Done" /\\ exitCode # 0 => chmCreated = FALSE
+FatalScenariosDoNotCreateChm ==
+  phase = "Done" /\\ scenario \\in (ArgErrorScenarios \\cup CompileErrorScenarios \\cup MissingProjectScenarios) => chmCreated = FALSE
 
 SuccessPassedThroughWriter ==
   phase = "Done" /\\ chmCreated =>
@@ -368,22 +372,28 @@ AllGherkinScenariosModeled ==
 AbnormalSpecCoverage ==
   /\\ ArgErrorScenarios = {arg_error_scenarios}
   /\\ CompileErrorScenarios = {compile_error_scenarios}
+  /\\ MissingProjectScenarios = {missing_project_scenarios}
   /\\ WarningScenarios = {warning_scenarios}
   /\\ FailureWithoutChmScenarios = {failure_without_chm_scenarios}
+  /\\ PartialOutputScenarios = {partial_output_scenarios}
   /\\ WarningSuccessScenarios = {warning_success_scenarios}
   /\\ ArgErrorScenarios # {{}}
   /\\ CompileErrorScenarios # {{}}
+  /\\ MissingProjectScenarios # {{}}
   /\\ WarningScenarios # {{}}
   /\\ FailureWithoutChmScenarios # {{}}
+  /\\ PartialOutputScenarios # {{}}
   /\\ WarningSuccessScenarios # {{}}
 
 AbnormalImplementationBehavior ==
   phase = "Done" =>
-    /\\ scenario \\in ArgErrorScenarios => exitCode = 2 /\\ chmCreated = FALSE
+    /\\ scenario \\in ArgErrorScenarios => exitCode = 24 /\\ chmCreated = FALSE
     /\\ scenario \\in CompileErrorScenarios => exitCode = 1 /\\ chmCreated = FALSE
+    /\\ scenario \\in MissingProjectScenarios => exitCode = 0 /\\ chmCreated = FALSE
     /\\ scenario \\in WarningScenarios => warnings # {{}}
-    /\\ scenario \\in FailureWithoutChmScenarios => exitCode # 0 /\\ chmCreated = FALSE
-    /\\ scenario \\in WarningSuccessScenarios => exitCode = 0 /\\ chmCreated = TRUE /\\ warnings # {{}}
+    /\\ scenario \\in FailureWithoutChmScenarios => chmCreated = FALSE
+    /\\ scenario \\in PartialOutputScenarios => exitCode = 0 /\\ chmCreated = TRUE
+    /\\ scenario \\in WarningSuccessScenarios => chmCreated = TRUE /\\ warnings # {{}}
 
 EventuallyDone == <> (phase = "Done")
 
@@ -398,7 +408,7 @@ INVARIANTS
   TypeOK
   GherkinSpecSatisfied
   ImplementationStageDiscipline
-  NoErrorCreatesChm
+  FatalScenariosDoNotCreateChm
   SuccessPassedThroughWriter
   AllGherkinScenariosModeled
   AbnormalSpecCoverage
@@ -427,8 +437,9 @@ This suite expresses the workflow the user asked for:
    Gherkin obligations.
 
 The model also checks abnormal-case coverage explicitly: argument errors,
-compile errors, warning-only success cases, and failure-without-CHM cases must
-all be present in the Gherkin-derived obligations and must keep the expected
+argument errors, compile errors, missing-project exits, partial-output success
+cases, warning-bearing CHM outputs, and failure-without-CHM cases must all be
+present in the Gherkin-derived obligations and must keep the expected
 exit-code/CHM-creation behavior in the implementation model.
 
 `ApiExceptionConformance.tla` injects exceptions at modeled implementation API

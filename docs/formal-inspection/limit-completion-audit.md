@@ -15,7 +15,7 @@ documented non-applicability decision, or a delegated verification path.
 | 4. EARS/Gherkin | `ears-requirements.md`, `current-spec.feature`, `docs/usecases.feature`, `docs/usecases.additional.feature` | Completed. |
 | 5. State/domain model | `domain-model.md`, `ExistingCodeLoop.tla` | Completed, with abstraction boundaries documented. |
 | 6. Traceability | `traceability.md` | Completed, including TLA, Lean/Dafny disposition, and implementation-test targets. |
-| 7. TLA+ model/cfg | `docs/tla/inspection`, `docs/tla/core`, `docs/tla/implementation`, `docs/tla/usecases` | Completed; 98 referenced TLC logs are coverage-audited. |
+| 7. TLA+ model/cfg | `docs/tla/inspection`, `docs/tla/core`, `docs/tla/implementation`, `docs/tla/usecases` | Completed; 108 referenced TLC logs are coverage-audited. |
 | 8. Normal TLC check | `verification-summary.md` files, `coverage-audit.md` | Completed; 1 inspection model and 97 broader models pass. |
 | 9. Mutation oracle | `run_tla_mutation_oracle.py`, `mutation-oracle-summary.md` | Completed for the inspection model; 23 mutants executed. |
 | 10. Survivor analysis | `mutation-oracle-summary.md`, `inspection-report.md` | Completed; 20 killed, 3 equivalent, 0 true survivor. |

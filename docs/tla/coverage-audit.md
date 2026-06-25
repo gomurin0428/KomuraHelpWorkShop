@@ -38,8 +38,8 @@ Referenced logs: 108
 | `artifacts/tla-results/Use Case/UC017_Hhp_PreSectionLinesIgnored.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
 | `artifacts/tla-results/Use Case/UC018_Files_RequiredFiles.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
 | `artifacts/tla-results/Use Case/UC019_Files_DefaultTopicFirstHtml.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
-| `artifacts/tla-results/Use Case/UC020_Files_GenerateContents.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
-| `artifacts/tla-results/Use Case/UC021_Files_MissingRequiredFails.log` | yes | `BuildMetadata`, `StayDone`, `WriteChm` | `BuildMetadata`: use-case model stops before this shared pipeline action; `StayDone`: documented unreachable/stutter action; `WriteChm`: use-case model stops before this shared pipeline action | - |
+| `artifacts/tla-results/Use Case/UC020_Files_NoGeneratedContents.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
+| `artifacts/tla-results/Use Case/UC021_Files_MissingRequiredPartial.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
 | `artifacts/tla-results/Use Case/UC022_Files_AllowMissing.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
 | `artifacts/tla-results/Use Case/UC023_Files_DuplicateSameFile.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
 | `artifacts/tla-results/Use Case/UC024_Files_DuplicateConflict.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
@@ -59,7 +59,7 @@ Referenced logs: 108
 | `artifacts/tla-results/Use Case/UC038_Paths_NormalizeDots.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
 | `artifacts/tla-results/Use Case/UC039_Paths_OutsideRelativeLink.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
 | `artifacts/tla-results/Use Case/UC040_Paths_FlatNames.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
-| `artifacts/tla-results/Use Case/UC041_Paths_FlatRewrite.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
+| `artifacts/tla-results/Use Case/UC041_Paths_FlatPayloadPreserved.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
 | `artifacts/tla-results/Use Case/UC042_Encoding_BomText.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
 | `artifacts/tla-results/Use Case/UC043_Encoding_StrictUtf8.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
 | `artifacts/tla-results/Use Case/UC044_Encoding_LcidAnsi.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
@@ -105,9 +105,9 @@ Referenced logs: 108
 | `artifacts/tla-results/Use Case/UC084_Error_WriterInputReadFailure.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
 | `artifacts/tla-results/Use Case/UC085_Error_LockedOutputPreserved.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
 | `artifacts/tla-results/Use Case/UC086_Error_MetadataEntryTooLarge.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
-| `artifacts/tla-results/Use Case/UC087_Files_GeneratedContentsEscapesHtml.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
+| `artifacts/tla-results/Use Case/UC087_Files_OmittedContentsKeepsHtmlTopic.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
 | `artifacts/tla-results/Use Case/UC088_Links_BaseHrefFragmentTarget.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
-| `artifacts/tla-results/Use Case/UC089_Files_GeneratedContentsEscapesLocalUrls.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
+| `artifacts/tla-results/Use Case/UC089_Files_OmittedContentsNoReservedToc.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
 | `artifacts/tla-results/Use Case/UC090_Paths_ProjectEntityLiteral.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
 | `artifacts/tla-results/Use Case/UC091_Links_ExternalBaseFlatRewriteSkipped.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
 | `artifacts/tla-results/Use Case/UC092_Links_AnyAbsoluteUriSchemeExternal.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |

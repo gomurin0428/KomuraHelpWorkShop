@@ -58,8 +58,8 @@ FailingApiExceptionPoints ==
 
 AbsorbedApiExceptionPoints == {"LinkScanner.ExtractLinks"}
 
-ArchivePaths == {"index.html", "linked.html", "Table of Contents.hhc"}
-WarningTags == {"generated toc"}
+ArchivePaths == {"index.html", "linked.html"}
+WarningTags == {}
 StderrTags == {"error"}
 VisitedTags == {
   "Start",
@@ -132,10 +132,8 @@ ScanLinks ==
 BuildMetadata ==
   /\ phase = "LinksScanned"
   /\ phase' = "MetadataBuilt"
-  /\ archive' = archive \cup {"Table of Contents.hhc"}
-  /\ warnings' = warnings \cup {"generated toc"}
   /\ visited' = visited \cup {"MetadataBuilt"}
-  /\ UNCHANGED <<injectedApi, stderr, exceptionObserved, exceptionAbsorbed, exitCode, chmCreated>>
+  /\ UNCHANGED <<injectedApi, archive, warnings, stderr, exceptionObserved, exceptionAbsorbed, exitCode, chmCreated>>
 
 ResolveOutput ==
   /\ phase = "MetadataBuilt"
@@ -170,7 +168,7 @@ WriteOutput ==
        FailAt(injectedApi)
      ELSE
        /\ phase' = "Done"
-       /\ exitCode' = 0
+       /\ exitCode' = 1
        /\ chmCreated' = TRUE
        /\ visited' = visited \cup {"Done"}
        /\ UNCHANGED <<injectedApi, archive, warnings, stderr, exceptionObserved, exceptionAbsorbed>>
@@ -230,7 +228,7 @@ LinkScannerExceptionsAreAbsorbed ==
   phase = "Done" /\ injectedApi = "LinkScanner.ExtractLinks" =>
     /\ exceptionObserved
     /\ exceptionAbsorbed
-    /\ exitCode = 0
+    /\ exitCode = 1
     /\ chmCreated = TRUE
     /\ "index.html" \in archive
     /\ "linked.html" \notin archive
@@ -238,13 +236,13 @@ LinkScannerExceptionsAreAbsorbed ==
 NoInjectedExceptionSucceeds ==
   phase = "Done" /\ injectedApi = "None" =>
     /\ ~exceptionObserved
-    /\ exitCode = 0
+    /\ exitCode = 1
     /\ chmCreated = TRUE
     /\ "index.html" \in archive
     /\ "linked.html" \in archive
 
-ErrorDoesNotCreateChm ==
-  phase = "Done" /\ exitCode # 0 => chmCreated = FALSE
+FailingApiDoesNotCreateChm ==
+  phase = "Done" /\ injectedApi \in FailingApiExceptionPoints => chmCreated = FALSE
 
 EventuallyDone == <> (phase = "Done")
 

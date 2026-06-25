@@ -45,7 +45,7 @@ This model is implementation-informed but intentionally not an implementation co
 | `TypeOK` | Keeps all modeled variables inside finite domains. | all modeled IDs |
 | `StageDiscipline` | Metadata/package/output stages cannot happen out of order. | S-001 |
 | `FinalOutcomeMatchesCurrentCode` | Terminal exit/error/warning/output/archive namespace matches current-code spec. | S-002, S-003 |
-| `NoSuccessfulChmOnError` | Error exits cannot report a valid CHM. | U-003, U-005 |
+| `FatalErrorDoesNotCreateChm` | Fatal error scenarios cannot report a valid CHM. | U-003, U-005 |
 | `SuccessRequiresPackageAndOutputOpen` | A valid CHM requires package construction and output publication. | N-002, N-005 |
 | `EarlyFailuresStopBeforeMetadata` | CLI/project/required-file failures stop early. | U-001..U-003 |
 | `OutputCreateFailurePreservesExistingOutput` | Locked/unwritable final target preserves existing output. | E-006 |
