@@ -44,7 +44,6 @@ ApiExceptionPoints == {
   "HhpProject.Load",
   "TextEncodingDetector.ReadProject",
   "ProjectCompiler.ResolveSourcePath",
-  "ProjectCompiler.BuildInputData",
   "ProjectCompiler.ResolveOutputPath",
   "LinkScanner.ExtractLinks",
   "ChmWriter.BuildSystemFile",
@@ -107,7 +106,7 @@ LoadProject ==
 
 CollectExplicitFiles ==
   /\ phase = "ProjectLoaded"
-  /\ IF injectedApi \in {"ProjectCompiler.ResolveSourcePath", "ProjectCompiler.BuildInputData"} THEN
+  /\ IF injectedApi = "ProjectCompiler.ResolveSourcePath" THEN
        FailAt(injectedApi)
      ELSE
        /\ phase' = "ExplicitFilesCollected"
@@ -208,7 +207,6 @@ EveryApiBoundaryModeled ==
      "HhpProject.Load",
      "TextEncodingDetector.ReadProject",
      "ProjectCompiler.ResolveSourcePath",
-     "ProjectCompiler.BuildInputData",
      "ProjectCompiler.ResolveOutputPath",
      "LinkScanner.ExtractLinks",
      "ChmWriter.BuildSystemFile",

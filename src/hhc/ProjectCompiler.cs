@@ -23,7 +23,7 @@ internal sealed class ProjectCompiler
         WarnForUnsupportedOptions(project);
 
         var outputPath = ResolveOutputPath(project);
-        ValidateOutputDoesNotOverwriteInputs(outputPath, project.ProjectPath, files.InputFiles);
+        ValidateOutputDoesNotOverwriteInputs(outputPath, project.ProjectPath, files.SourcePathsForOverwriteGuard);
         var metadata = BuildMetadata(project, outputPath, lcid, helpTextEncoding, files.DefaultTopicArchivePath);
         var writer = new ChmWriter();
         writer.Write(outputPath, files.InputFiles, metadata);
@@ -37,10 +37,13 @@ internal sealed class ProjectCompiler
         var byArchivePath = new Dictionary<string, InputFile>(StringComparer.OrdinalIgnoreCase);
         var queue = new Queue<InputFile>();
         var missingRequired = new List<string>();
+        var rootArchivePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var linksByArchivePath = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var sourcePathsForOverwriteGuard = new HashSet<string>(FileSystemPathComparer);
 
         string? defaultTopicArchivePath = null;
 
-        void AddPath(
+        string? AddPath(
             string rawPath,
             string reason,
             bool required,
@@ -51,14 +54,14 @@ internal sealed class ProjectCompiler
             var cleaned = isProjectPath ? ArchivePath.CleanProjectPath(rawPath) : ArchivePath.CleanLink(rawPath);
             if (cleaned is null)
             {
-                return;
+                return null;
             }
 
             var sourcePath = ResolveSourcePath(project.ProjectDirectory, cleaned, baseDirectory, isProjectPath);
             var archiveRelative = MakeArchiveRelative(project.ProjectDirectory, sourcePath, cleaned, flat, isProjectPath, archiveBaseDirectory);
             if (archiveRelative.Length == 0)
             {
-                return;
+                return null;
             }
 
             if (!File.Exists(sourcePath))
@@ -69,7 +72,14 @@ internal sealed class ProjectCompiler
                     _warnings.Add($"HHC5003: Error: Compilation failed while compiling {rawPath}.");
                 }
 
-                return;
+                return null;
+            }
+
+            var fullSourcePath = Path.GetFullPath(sourcePath);
+            if (required)
+            {
+                rootArchivePaths.Add(archiveRelative);
+                sourcePathsForOverwriteGuard.Add(fullSourcePath);
             }
 
             var input = new InputFile(sourcePath, archiveRelative, reason);
@@ -77,7 +87,7 @@ internal sealed class ProjectCompiler
             {
                 if (Path.GetFullPath(existing.SourcePath).Equals(Path.GetFullPath(sourcePath), FileSystemPathComparison))
                 {
-                    return;
+                    return archiveRelative;
                 }
 
                 byArchivePath[archiveRelative] = input;
@@ -93,6 +103,8 @@ internal sealed class ProjectCompiler
             {
                 Console.Error.WriteLine($"add: {archiveRelative} <- {sourcePath}");
             }
+
+            return archiveRelative;
         }
 
         foreach (var file in project.Files)
@@ -134,21 +146,41 @@ internal sealed class ProjectCompiler
                 }
 
                 var archiveBaseDirectory = ArchivePath.DirectoryName(current.ArchivePath);
+                var scannedLinks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                linksByArchivePath[current.ArchivePath] = scannedLinks;
                 foreach (var link in LinkScanner.ExtractLinks(current.SourcePath, helpTextEncoding))
                 {
-                    AddPath(
+                    var linkedArchivePath = AddPath(
                         link,
                         $"linked from {current.ArchivePath}",
                         required: false,
                         isProjectPath: false,
                         baseDirectory: Path.GetDirectoryName(current.SourcePath),
                         archiveBaseDirectory: archiveBaseDirectory);
+                    if (linkedArchivePath is not null)
+                    {
+                        scannedLinks.Add(linkedArchivePath);
+                    }
                 }
             }
         }
 
+        var reachableArchivePaths = BuildReachableArchivePaths(rootArchivePaths, byArchivePath, linksByArchivePath);
+        var inputFiles = byArchivePath
+            .Values
+            .Where(file => reachableArchivePaths.Contains(file.ArchivePath))
+            .OrderBy(f => f.ArchivePath, ChmPathComparer.Instance)
+            .ToList();
+        foreach (var inputFile in inputFiles)
+        {
+            sourcePathsForOverwriteGuard.Add(Path.GetFullPath(inputFile.SourcePath));
+        }
 
-        return new CollectedFiles(byArchivePath.Values.OrderBy(f => f.ArchivePath, ChmPathComparer.Instance).ToList(), missingRequired, defaultTopicArchivePath);
+        return new CollectedFiles(
+            inputFiles,
+            missingRequired,
+            defaultTopicArchivePath,
+            sourcePathsForOverwriteGuard.OrderBy(path => path, FileSystemPathComparer).ToList());
     }
 
     private string ResolveOutputPath(HhpProject project)
@@ -168,23 +200,23 @@ internal sealed class ProjectCompiler
         return outputPath;
     }
 
-    private static void ValidateOutputDoesNotOverwriteInputs(string outputPath, string projectPath, IReadOnlyList<InputFile> inputFiles)
+    private static void ValidateOutputDoesNotOverwriteInputs(string outputPath, string projectPath, IReadOnlyList<string> inputSourcePaths)
     {
         if (SameFileSystemPath(outputPath, projectPath))
         {
             throw new CompilationException($"Output path would overwrite the project file: {projectPath}");
         }
 
-        foreach (var input in inputFiles)
+        foreach (var inputSourcePath in inputSourcePaths)
         {
-            if (input.SourcePath.Length == 0)
+            if (inputSourcePath.Length == 0)
             {
                 continue;
             }
 
-            if (SameFileSystemPath(outputPath, input.SourcePath))
+            if (SameFileSystemPath(outputPath, inputSourcePath))
             {
-                throw new CompilationException($"Output path would overwrite an input file: {input.SourcePath}");
+                throw new CompilationException($"Output path would overwrite an input file: {inputSourcePath}");
             }
         }
     }
@@ -196,6 +228,49 @@ internal sealed class ProjectCompiler
 
     private static StringComparison FileSystemPathComparison =>
         OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+
+    private static StringComparer FileSystemPathComparer =>
+        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+
+    private static HashSet<string> BuildReachableArchivePaths(
+        HashSet<string> rootArchivePaths,
+        Dictionary<string, InputFile> byArchivePath,
+        Dictionary<string, HashSet<string>> linksByArchivePath)
+    {
+        var reachable = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var pending = new Stack<string>();
+        foreach (var rootArchivePath in rootArchivePaths)
+        {
+            if (byArchivePath.ContainsKey(rootArchivePath))
+            {
+                pending.Push(rootArchivePath);
+            }
+        }
+
+        while (pending.Count > 0)
+        {
+            var archivePath = pending.Pop();
+            if (!reachable.Add(archivePath))
+            {
+                continue;
+            }
+
+            if (!linksByArchivePath.TryGetValue(archivePath, out var linkedArchivePaths))
+            {
+                continue;
+            }
+
+            foreach (var linkedArchivePath in linkedArchivePaths)
+            {
+                if (byArchivePath.ContainsKey(linkedArchivePath))
+                {
+                    pending.Push(linkedArchivePath);
+                }
+            }
+        }
+
+        return reachable;
+    }
 
 
     private static string? NormalizeFileSystemPath(string? path)
@@ -391,7 +466,8 @@ internal sealed class ProjectCompiler
     private sealed record CollectedFiles(
         IReadOnlyList<InputFile> InputFiles,
         IReadOnlyList<string> MissingRequired,
-        string? DefaultTopicArchivePath);
+        string? DefaultTopicArchivePath,
+        IReadOnlyList<string> SourcePathsForOverwriteGuard);
 }
 
 internal sealed record InputFile(string SourcePath, string ArchivePath, string Reason, byte[]? Data = null);

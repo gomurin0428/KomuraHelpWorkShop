@@ -29,6 +29,7 @@ var tests = new (string Name, Action Body)[]
     ("missing required file emits partial CHM", MissingRequiredFileEmitsPartialChm),
     ("allow-missing downgrades required absence to warning", AllowMissingDowngradesRequiredAbsence),
     ("Flat duplicate archive conflict keeps last file", FlatDuplicateConflictKeepsLast),
+    ("Flat replacement prunes losing source links", FlatReplacementPrunesLosingSourceLinks),
     ("outside project paths stay inside archive namespace", OutsideProjectPathsStayInsideArchiveNamespace),
     ("outside project basename collisions keep last", OutsideProjectBasenameCollisionsKeepLast),
     ("archive path normalization property seeds never escape", ArchivePathNormalizationPropertySeedsNeverEscape),
@@ -61,6 +62,7 @@ var tests = new (string Name, Action Body)[]
     ("omitted Contents file does not generate TOC", OmittedContentsFileDoesNotGenerateToc),
     ("internal stream archive path collision exits 1", InternalStreamArchivePathCollisionExitsOne),
     ("output path cannot overwrite project or input files", OutputPathCannotOverwriteProjectOrInputFiles),
+    ("output path cannot overwrite replaced flat collision source", OutputPathCannotOverwriteReplacedFlatCollisionSource),
     ("case-only archive source collision is quiet", CaseOnlyArchiveSourceCollisionIsQuiet),
     ("unwritable output target exits 1 without CHM creation", UnwritableOutputTargetExitsOne),
     ("locked input file read exits 1 before creating CHM", LockedInputFileReadExitsOne),
@@ -402,6 +404,34 @@ void FlatDuplicateConflictKeepsLast()
     AssertContainsAscii(bytes, "/index.html");
     AssertContainsAscii(bytes, "SECOND");
     AssertNotContainsAscii(bytes, "FIRST");
+}
+
+void FlatReplacementPrunesLosingSourceLinks()
+{
+    using var project = TempProject.Create();
+    project.WriteText("a/page.html", "<html><body>LOSING<img src=\"old-only.png\"><a href=\"../b/page.html\">replacement</a></body></html>");
+    project.WriteText("a/old-only.png", "OLD ONLY");
+    project.WriteText("b/page.html", "<html><body>WINNING<img src=\"new-only.png\"></body></html>");
+    project.WriteText("b/new-only.png", "NEW ONLY");
+    project.WriteText(
+        "help.hhp",
+        string.Join(
+            "\r\n",
+            "[OPTIONS]",
+            "Compiled file=flat-replacement.chm",
+            "Flat=Yes",
+            "[FILES]",
+            "a/page.html",
+            string.Empty));
+
+    var result = RunHhc(project.File("help.hhp").FullName);
+
+    AssertEqual(1, result.ExitCode, result.ToString());
+    var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("flat-replacement.chm").FullName));
+    AssertEqual(true, entries.ContainsKey("/page.html"), "Replacing flat page should remain under the collided archive name.");
+    AssertContainsBytes(entries["/page.html"], Encoding.UTF8.GetBytes("WINNING"), "winning replacement page");
+    AssertEqual(true, entries.ContainsKey("/new-only.png"), "Replacement page links should be collected.");
+    AssertEqual(false, entries.ContainsKey("/old-only.png"), "Links reachable only from the replaced page should be pruned.");
 }
 
 void OutsideProjectPathsStayInsideArchiveNamespace()
@@ -1551,6 +1581,31 @@ void OutputPathCannotOverwriteProjectOrInputFiles()
     AssertEqual(1, hhpResult.ExitCode, hhpResult.ToString());
     AssertContainsText(hhpResult.Stderr, "overwrite the project file");
     AssertEqual(hhpText, File.ReadAllText(hhpProject.File("help.hhp").FullName), "Project file contents should be preserved.");
+}
+
+void OutputPathCannotOverwriteReplacedFlatCollisionSource()
+{
+    using var project = TempProject.Create();
+    const string losingText = "<html><body>ORIGINAL LOSING INPUT</body></html>";
+    project.WriteText("a/index.html", losingText);
+    project.WriteText("b/index.html", "<html><body>WINNING INPUT</body></html>");
+    project.WriteText(
+        "help.hhp",
+        string.Join(
+            "\r\n",
+            "[OPTIONS]",
+            "Compiled file=unused.chm",
+            "Flat=Yes",
+            "[FILES]",
+            "a/index.html",
+            "b/index.html",
+            string.Empty));
+
+    var result = RunHhc(project.File("help.hhp").FullName, "--out", project.File("a/index.html").FullName);
+
+    AssertEqual(1, result.ExitCode, result.ToString());
+    AssertContainsText(result.Stderr, "overwrite an input file");
+    AssertEqual(losingText, File.ReadAllText(project.File("a/index.html").FullName), "Replaced input source should be preserved.");
 }
 
 void CaseOnlyArchiveSourceCollisionIsQuiet()

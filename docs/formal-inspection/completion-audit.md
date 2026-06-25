@@ -17,14 +17,14 @@ proved by the checked artifacts and what remains outside the verified scope.
 | 9. Classify survivors and strengthen invariants/modeling for true survivors. | `mutation-oracle-summary.md` and `inspection-report.md`: 20 killed, 3 equivalent, 0 true survivor. Strengthened invariants include `DesiredFailureAtomicity`, `OutsideProjectPathUsesBasenameArchiveName`, `ArchiveNamespaceNeverEscapes`, `TerminalTransitionCountMatchesPath`, `NoPendingLinksAtTerminalState`, `LinkReadFailureIsAbsorbedWithoutWarning`, and liveness/fairness coverage. | Satisfied; no true survivor remains in the inspection model. |
 | 10. Do not call true survivors verified. | `inspection-report.md` reports 0 true survivors and separates verified vs not-verified scope. | Satisfied. |
 | 11. Drop TLC counterexamples or true survivors to Gherkin/unit/property/fuzz seeds. | No true survivor remains. Discovered holes/bugs are represented in `current-spec.feature`, implementation tests, and `fuzzing-seeds.md`. | Satisfied. |
-| 12. Verify correct implementation green and intentionally broken implementation red. | `inspection-report.md` records source mutation red/green checks for outside-project archive naming, aggregate PMGI size guard, output staging path, invalid UTF-8 fallback, and CHM content-offset advancement. Current `dotnet run --project tests\hhc.IntegrationTests\hhc.IntegrationTests.csproj -p:UseAppHost=false` passes 59 tests; a temporary outside-path mutation failed the two expected archive-namespace tests and passed again after restore. | Satisfied. |
+| 12. Verify correct implementation green and intentionally broken implementation red. | `inspection-report.md` records source mutation red/green checks for outside-project archive naming, aggregate PMGI size guard, output staging path, invalid UTF-8 fallback, and CHM content-offset advancement. Current `dotnet run --project tests\hhc.IntegrationTests\hhc.IntegrationTests.csproj -p:UseAppHost=false` passes 61 tests; a temporary outside-path mutation failed the two expected archive-namespace tests and passed again after restore. | Satisfied. |
 | 13. Propose complements for TLA abstractions using fuzzing, property tests, differential tests, Lean/Dafny, or unit tests. | `domain-model.md`, `traceability.md`, `recommended-tests.md`, and `fuzzing-seeds.md`. | Satisfied. |
 
 ## Current Verification Results
 
 | Gate | Command | Result |
 | -- | -- | -- |
-| Implementation/direct tests | `dotnet run --project tests\hhc.IntegrationTests\hhc.IntegrationTests.csproj -p:UseAppHost=false` | 59 passed |
+| Implementation/direct tests | `dotnet run --project tests\hhc.IntegrationTests\hhc.IntegrationTests.csproj -p:UseAppHost=false` | 61 passed |
 | Inspection TLA model | `python tools\run_tla_inspection_model.py` | pass |
 | Broader TLA suite | `python tools\run_tla_models.py` | 107 passed |
 | TLA coverage audit | `python tools\audit_tla_coverage.py` | 108 logs checked, 0 unexpected issues |

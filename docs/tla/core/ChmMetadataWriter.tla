@@ -24,7 +24,7 @@ vars == <<scenario, phase, systemCodes, stringTags, writerTags, error, chmCreate
 Scenarios == {
   "FullMetadata",
   "OmitOptionalTopicContentsIndexFont",
-  "GeneratedContentsMetadata",
+  "OmittedContentsNoGeneratedToc",
   "DbcsLanguage",
   "NonDbcsLanguage",
   "StringTableDeduplicates",
@@ -56,14 +56,14 @@ BaseCodes == {"Title", "DefaultWindow", "CompiledStem", "Generator", "Timestamp"
 ExpectedSystemCodes(s) ==
   CASE
     s = "FullMetadata" -> BaseCodes \cup {"Contents", "Index", "DefaultTopic", "DefaultFont"}
-  [] s = "GeneratedContentsMetadata" -> BaseCodes \cup {"Contents"}
+  [] s = "OmittedContentsNoGeneratedToc" -> BaseCodes
   [] s = "OversizedSystemEntry" -> BaseCodes
   [] OTHER -> BaseCodes
 
 ExpectedStrings(s) ==
   CASE
     s = "FullMetadata" -> {"custom", "title", "contents", "index", "topic"}
-  [] s = "GeneratedContentsMetadata" -> {"main", "title", "contents"}
+  [] s = "OmittedContentsNoGeneratedToc" -> {"main", "title"}
   [] s = "StringTableDeduplicates" -> {"main", "title", "dedup"}
   [] OTHER -> {"main", "title"}
 
@@ -133,10 +133,10 @@ OptionalSystemEntriesAreConditional ==
     /\ "DefaultTopic" \notin systemCodes
     /\ "DefaultFont" \notin systemCodes
 
-GeneratedContentsSuppliesContentsEntry ==
-  phase = "Done" /\ scenario = "GeneratedContentsMetadata" =>
-    /\ "Contents" \in systemCodes
-    /\ "DefaultTopic" \notin systemCodes
+OmittedContentsDoesNotSupplyContentsEntry ==
+  phase = "Done" /\ scenario = "OmittedContentsNoGeneratedToc" =>
+    /\ "Contents" \notin systemCodes
+    /\ "contents" \notin stringTags
 
 DbcsFlagMatchesMetadataEncoding ==
   phase = "Done" =>
