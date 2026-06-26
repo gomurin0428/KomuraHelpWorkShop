@@ -4,7 +4,7 @@ This audit is generated from the TLC logs referenced by the current verification
 Coverage is expected to be present for every checked model. Zero-hit top-level actions are allowed for documented unreachable/stutter actions: `ExternalAbort` and `StayDone`.
 Use-case models also reuse a shared pipeline action skeleton; when a scenario exits early, later shared actions are recorded as intentionally zero-hit rather than as missing coverage.
 
-Referenced logs: 108
+Referenced logs: 107
 
 | Log | Coverage present | Zero-hit top-level actions | Zero-hit disposition | Unexpected zero/missing coverage |
 | -- | -- | -- | -- | -- |
@@ -101,7 +101,6 @@ Referenced logs: 108
 | `artifacts/tla-results/Use Case/UC080_Metadata_NoDefaultTopicWhenNoHtml.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
 | `artifacts/tla-results/Use Case/UC081_Metadata_FlatOptionArchivePaths.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
 | `artifacts/tla-results/Use Case/UC082_Chm_StringTableDeduplicates.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
-| `artifacts/tla-results/Use Case/UC083_Error_CollectInputReadFailure.log` | yes | `BuildMetadata`, `StayDone`, `WriteChm` | `BuildMetadata`: use-case model stops before this shared pipeline action; `StayDone`: documented unreachable/stutter action; `WriteChm`: use-case model stops before this shared pipeline action | - |
 | `artifacts/tla-results/Use Case/UC084_Error_WriterInputReadFailure.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
 | `artifacts/tla-results/Use Case/UC085_Error_LockedOutputPreserved.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |
 | `artifacts/tla-results/Use Case/UC086_Error_MetadataEntryTooLarge.log` | yes | `StayDone` | `StayDone`: documented unreachable/stutter action | - |

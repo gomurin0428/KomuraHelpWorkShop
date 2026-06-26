@@ -12,7 +12,7 @@ proved by the checked artifacts and what remains outside the verified scope.
 | 4. Drop requirements into EARS or Gherkin. | `ears-requirements.md` and `current-spec.feature`. | Satisfied. |
 | 5. Build state/domain model and state TLA+ modeling scope plus abstractions. | `domain-model.md` and `docs/tla/inspection/ExistingCodeLoop.tla`. | Satisfied. |
 | 6. Provide traceability from spec ID to EARS/Gherkin, TLA Action/Inv/Temporal, Lean/Dafny target, and implementation tests. | `traceability.md`. | Satisfied; Lean/Dafny targets are marked as future candidates where applicable, not implemented. |
-| 7. Write TLA+ model/cfg and run normal TLC. | `docs/tla/inspection/ExistingCodeLoop.tla`, `ExistingCodeLoop.cfg`, `ExistingCodeLoop.AtomicityCandidate.cfg`; `python tools/run_tla_inspection_model.py` passes. Broader `python tools/run_tla_models.py` passes 107 models. `docs/tla/coverage-audit.md` confirms coverage is present for all 108 referenced logs and has 0 unexpected zero-hit or missing-coverage issues. | Satisfied. |
+| 7. Write TLA+ model/cfg and run normal TLC. | `docs/tla/inspection/ExistingCodeLoop.tla`, `ExistingCodeLoop.cfg`, `ExistingCodeLoop.AtomicityCandidate.cfg`; `python tools/run_tla_inspection_model.py` passes. Broader `python tools/run_tla_models.py` passes 106 models. `docs/tla/coverage-audit.md` confirms coverage is present for all 107 referenced logs and has 0 unexpected zero-hit or missing-coverage issues. | Satisfied. |
 | 8. Run mutation oracle for comparison/logical/guard/update/reset/error/cancel/timeout/verification mutations. | `tools/run_tla_mutation_oracle.py`; `mutation-oracle-summary.md` records 23 mutants. `augmented-loop-audit.md` maps required mutant families to executed mutants or non-applicable implementation features. | Satisfied for the inspection TLA model. |
 | 9. Classify survivors and strengthen invariants/modeling for true survivors. | `mutation-oracle-summary.md` and `inspection-report.md`: 20 killed, 3 equivalent, 0 true survivor. Strengthened invariants include `DesiredFailureAtomicity`, `OutsideProjectPathUsesBasenameArchiveName`, `ArchiveNamespaceNeverEscapes`, `TerminalTransitionCountMatchesPath`, `NoPendingLinksAtTerminalState`, `LinkReadFailureIsAbsorbedWithoutWarning`, and liveness/fairness coverage. | Satisfied; no true survivor remains in the inspection model. |
 | 10. Do not call true survivors verified. | `inspection-report.md` reports 0 true survivors and separates verified vs not-verified scope. | Satisfied. |
@@ -26,8 +26,8 @@ proved by the checked artifacts and what remains outside the verified scope.
 | -- | -- | -- |
 | Implementation/direct tests | `dotnet run --project tests\hhc.IntegrationTests\hhc.IntegrationTests.csproj -p:UseAppHost=false` | 61 passed |
 | Inspection TLA model | `python tools\run_tla_inspection_model.py` | pass |
-| Broader TLA suite | `python tools\run_tla_models.py` | 107 passed |
-| TLA coverage audit | `python tools\audit_tla_coverage.py` | 108 logs checked, 0 unexpected issues |
+| Broader TLA suite | `python tools\run_tla_models.py` | 106 passed |
+| TLA coverage audit | `python tools\audit_tla_coverage.py` | 107 logs checked, 0 unexpected issues |
 | TLA mutation oracle | `python tools\run_tla_mutation_oracle.py` | 20 killed, 3 equivalent, 0 true survivor |
 | Whitespace check | `git diff --check` | no whitespace errors; CRLF warnings only |
 

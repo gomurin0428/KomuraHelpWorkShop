@@ -11,7 +11,7 @@ project/load result, collected CHM paths, metadata tags, writer tags,
 stdout/stderr/warning tags, exit code, and CHM creation.
 *)
 
-Scenarios == {"UC001_Cli_NoArgsHelp", "UC002_Cli_HelpOptions", "UC003_Cli_Version", "UC004_Cli_UnknownOption", "UC005_Cli_OutMissingValue", "UC006_Cli_MissingProjectArg", "UC007_Cli_MultipleProjects", "UC008_Hhp_StandardCompile", "UC009_Hhp_OutRelativeOverride", "UC010_Hhp_OutAbsoluteOverride", "UC011_Hhp_CompiledFileOmitted", "UC012_Hhp_ProjectMissing", "UC013_Hhp_CommentsIgnored", "UC014_Hhp_CaseInsensitiveNames", "UC015_Hhp_QuotedValues", "UC016_Hhp_DuplicateOptionLastWins", "UC017_Hhp_PreSectionLinesIgnored", "UC018_Files_RequiredFiles", "UC019_Files_DefaultTopicFirstHtml", "UC020_Files_NoGeneratedContents", "UC021_Files_MissingRequiredPartial", "UC022_Files_AllowMissing", "UC023_Files_DuplicateSameFile", "UC024_Files_DuplicateConflict", "UC025_Files_Verbose", "UC026_Links_HtmlHrefSrc", "UC027_Links_CssImportUrl", "UC028_Links_LocalParam", "UC029_Links_NoLinkScan", "UC030_Links_ExternalIgnored", "UC031_Links_QueryFragment", "UC032_Links_EntityPercent", "UC033_Links_RelativeBase", "UC034_Links_RootRelative", "UC035_Links_NonScannable", "UC036_Links_OptionalMissing", "UC037_Paths_NormalArchivePath", "UC038_Paths_NormalizeDots", "UC039_Paths_OutsideRelativeLink", "UC040_Paths_FlatNames", "UC041_Paths_FlatPayloadPreserved", "UC042_Encoding_BomText", "UC043_Encoding_StrictUtf8", "UC044_Encoding_LcidAnsi", "UC045_Encoding_DeclaredLanguageRead", "UC046_Encoding_CurrentCultureFallback", "UC047_Encoding_DbcsLanguages", "UC048_Metadata_CoreFields", "UC049_Metadata_TitleOmitted", "UC050_Metadata_DefaultWindowMain", "UC051_Metadata_WindowAndFont", "UC052_Chm_InternalStreams", "UC053_Chm_SmallPmglOnly", "UC054_Chm_LargePmgi", "UC055_Chm_Uncompressed", "UC056_Unsupported_FullTextSearch", "UC057_Unsupported_BinaryToc", "UC058_Unsupported_BinaryIndex", "UC059_Unsupported_MergeFiles", "UC060_Unsupported_WindowsSection", "UC061_Error_OutputUnwritable", "UC062_Error_DirectoryEntryTooLarge", "UC063_Error_DirectoryTooLarge", "UC064_Cli_HelpShortCircuits", "UC065_Cli_VersionShortCircuits", "UC066_Cli_RepeatedOutLastWins", "UC067_Cli_OutBeforeProject", "UC068_Hhp_BlankCompiledFileIgnored", "UC069_Hhp_UnbalancedQuoteLiteral", "UC070_Hhp_TruthyFlatOn", "UC071_Files_DotPathIgnored", "UC072_Files_AbsoluteProjectFileNameOnly", "UC073_Files_OutsideRelativeProjectPath", "UC074_Links_EmptyAndFragmentIgnored", "UC075_Links_UncIgnored", "UC076_Links_MalformedPercentKept", "UC077_Links_ReadErrorAbsorbed", "UC078_Encoding_InvalidUtf8Fallback", "UC079_Encoding_LanguageHexWithoutPrefix", "UC080_Metadata_NoDefaultTopicWhenNoHtml", "UC081_Metadata_FlatOptionArchivePaths", "UC082_Chm_StringTableDeduplicates", "UC083_Error_CollectInputReadFailure", "UC084_Error_WriterInputReadFailure", "UC085_Error_LockedOutputPreserved", "UC086_Error_MetadataEntryTooLarge", "UC087_Files_OmittedContentsKeepsHtmlTopic", "UC088_Links_BaseHrefFragmentTarget", "UC089_Files_OmittedContentsNoReservedToc", "UC090_Paths_ProjectEntityLiteral", "UC091_Links_ExternalBaseFlatRewriteSkipped", "UC092_Links_AnyAbsoluteUriSchemeExternal", "UC093_Links_DecodedNulRejected", "UC094_Chm_InternalStreamCollision", "UC095_Error_OutputOverwriteRejected", "UC096_Files_CaseOnlySourceCollision", "UC097_Links_FlatReservedEscapesPreserved"}
+Scenarios == {"UC001_Cli_NoArgsHelp", "UC002_Cli_HelpOptions", "UC003_Cli_Version", "UC004_Cli_UnknownOption", "UC005_Cli_OutMissingValue", "UC006_Cli_MissingProjectArg", "UC007_Cli_MultipleProjects", "UC008_Hhp_StandardCompile", "UC009_Hhp_OutRelativeOverride", "UC010_Hhp_OutAbsoluteOverride", "UC011_Hhp_CompiledFileOmitted", "UC012_Hhp_ProjectMissing", "UC013_Hhp_CommentsIgnored", "UC014_Hhp_CaseInsensitiveNames", "UC015_Hhp_QuotedValues", "UC016_Hhp_DuplicateOptionLastWins", "UC017_Hhp_PreSectionLinesIgnored", "UC018_Files_RequiredFiles", "UC019_Files_DefaultTopicFirstHtml", "UC020_Files_NoGeneratedContents", "UC021_Files_MissingRequiredPartial", "UC022_Files_AllowMissing", "UC023_Files_DuplicateSameFile", "UC024_Files_DuplicateConflict", "UC025_Files_Verbose", "UC026_Links_HtmlHrefSrc", "UC027_Links_CssImportUrl", "UC028_Links_LocalParam", "UC029_Links_NoLinkScan", "UC030_Links_ExternalIgnored", "UC031_Links_QueryFragment", "UC032_Links_EntityPercent", "UC033_Links_RelativeBase", "UC034_Links_RootRelative", "UC035_Links_NonScannable", "UC036_Links_OptionalMissing", "UC037_Paths_NormalArchivePath", "UC038_Paths_NormalizeDots", "UC039_Paths_OutsideRelativeLink", "UC040_Paths_FlatNames", "UC041_Paths_FlatPayloadPreserved", "UC042_Encoding_BomText", "UC043_Encoding_StrictUtf8", "UC044_Encoding_LcidAnsi", "UC045_Encoding_DeclaredLanguageRead", "UC046_Encoding_CurrentCultureFallback", "UC047_Encoding_DbcsLanguages", "UC048_Metadata_CoreFields", "UC049_Metadata_TitleOmitted", "UC050_Metadata_DefaultWindowMain", "UC051_Metadata_WindowAndFont", "UC052_Chm_InternalStreams", "UC053_Chm_SmallPmglOnly", "UC054_Chm_LargePmgi", "UC055_Chm_Uncompressed", "UC056_Unsupported_FullTextSearch", "UC057_Unsupported_BinaryToc", "UC058_Unsupported_BinaryIndex", "UC059_Unsupported_MergeFiles", "UC060_Unsupported_WindowsSection", "UC061_Error_OutputUnwritable", "UC062_Error_DirectoryEntryTooLarge", "UC063_Error_DirectoryTooLarge", "UC064_Cli_HelpShortCircuits", "UC065_Cli_VersionShortCircuits", "UC066_Cli_RepeatedOutLastWins", "UC067_Cli_OutBeforeProject", "UC068_Hhp_BlankCompiledFileIgnored", "UC069_Hhp_UnbalancedQuoteLiteral", "UC070_Hhp_TruthyFlatOn", "UC071_Files_DotPathIgnored", "UC072_Files_AbsoluteProjectFileNameOnly", "UC073_Files_OutsideRelativeProjectPath", "UC074_Links_EmptyAndFragmentIgnored", "UC075_Links_UncIgnored", "UC076_Links_MalformedPercentKept", "UC077_Links_ReadErrorAbsorbed", "UC078_Encoding_InvalidUtf8Fallback", "UC079_Encoding_LanguageHexWithoutPrefix", "UC080_Metadata_NoDefaultTopicWhenNoHtml", "UC081_Metadata_FlatOptionArchivePaths", "UC082_Chm_StringTableDeduplicates", "UC084_Error_WriterInputReadFailure", "UC085_Error_LockedOutputPreserved", "UC086_Error_MetadataEntryTooLarge", "UC087_Files_OmittedContentsKeepsHtmlTopic", "UC088_Links_BaseHrefFragmentTarget", "UC089_Files_OmittedContentsNoReservedToc", "UC090_Paths_ProjectEntityLiteral", "UC091_Links_ExternalBaseFlatRewriteSkipped", "UC092_Links_AnyAbsoluteUriSchemeExternal", "UC093_Links_DecodedNulRejected", "UC094_Chm_InternalStreamCollision", "UC095_Error_OutputOverwriteRejected", "UC096_Files_CaseOnlySourceCollision", "UC097_Links_FlatReservedEscapesPreserved"}
 AllPhases == {"CliParsed", "Done", "FilesCollected", "MetadataBuilt", "ProjectLoaded", "ProjectMissing", "Start", "WriterRan"}
 AllCliModes == {"ArgError", "Compile", "Help", "Unset", "Version"}
 AllProjectStates == {"Loaded", "Missing", "NotLoaded", "Skipped"}
@@ -101,7 +101,6 @@ SpecCliMode(s) ==
   [] s = "UC080_Metadata_NoDefaultTopicWhenNoHtml" -> "Compile"
   [] s = "UC081_Metadata_FlatOptionArchivePaths" -> "Compile"
   [] s = "UC082_Chm_StringTableDeduplicates" -> "Compile"
-  [] s = "UC083_Error_CollectInputReadFailure" -> "Compile"
   [] s = "UC084_Error_WriterInputReadFailure" -> "Compile"
   [] s = "UC085_Error_LockedOutputPreserved" -> "Compile"
   [] s = "UC086_Error_MetadataEntryTooLarge" -> "Compile"
@@ -202,7 +201,6 @@ SpecProjectState(s) ==
   [] s = "UC080_Metadata_NoDefaultTopicWhenNoHtml" -> "Loaded"
   [] s = "UC081_Metadata_FlatOptionArchivePaths" -> "Loaded"
   [] s = "UC082_Chm_StringTableDeduplicates" -> "Loaded"
-  [] s = "UC083_Error_CollectInputReadFailure" -> "Loaded"
   [] s = "UC084_Error_WriterInputReadFailure" -> "Loaded"
   [] s = "UC085_Error_LockedOutputPreserved" -> "Loaded"
   [] s = "UC086_Error_MetadataEntryTooLarge" -> "Loaded"
@@ -303,7 +301,6 @@ SpecCollectionTags(s) ==
   [] s = "UC080_Metadata_NoDefaultTopicWhenNoHtml" -> {"NoDefaultTopic", "NoGeneratedContents"}
   [] s = "UC081_Metadata_FlatOptionArchivePaths" -> {"Flat", "FlatArchive"}
   [] s = "UC082_Chm_StringTableDeduplicates" -> {"ExplicitFiles"}
-  [] s = "UC083_Error_CollectInputReadFailure" -> {"CollectFailed", "CollectInputReadError"}
   [] s = "UC084_Error_WriterInputReadFailure" -> {"ExplicitFiles"}
   [] s = "UC085_Error_LockedOutputPreserved" -> {"ExplicitFiles"}
   [] s = "UC086_Error_MetadataEntryTooLarge" -> {"ExplicitFiles"}
@@ -394,7 +391,7 @@ SpecArchive(s) ==
   [] s = "UC070_Hhp_TruthyFlatOn" -> {"help.css", "usage.html"}
   [] s = "UC071_Files_DotPathIgnored" -> {"index.html"}
   [] s = "UC072_Files_AbsoluteProjectFileNameOnly" -> {"asset.bin"}
-  [] s = "UC073_Files_OutsideRelativeProjectPath" -> {"shared/page.html"}
+  [] s = "UC073_Files_OutsideRelativeProjectPath" -> {"page.html"}
   [] s = "UC074_Links_EmptyAndFragmentIgnored" -> {"index.html"}
   [] s = "UC075_Links_UncIgnored" -> {"index.html"}
   [] s = "UC076_Links_MalformedPercentKept" -> {"bad%ZZ.html", "index.html"}
@@ -404,7 +401,6 @@ SpecArchive(s) ==
   [] s = "UC080_Metadata_NoDefaultTopicWhenNoHtml" -> {"readme.txt"}
   [] s = "UC081_Metadata_FlatOptionArchivePaths" -> {"index.hhk", "index.html", "toc.hhc"}
   [] s = "UC082_Chm_StringTableDeduplicates" -> {"index.html"}
-  [] s = "UC083_Error_CollectInputReadFailure" -> {}
   [] s = "UC084_Error_WriterInputReadFailure" -> {"index.html"}
   [] s = "UC085_Error_LockedOutputPreserved" -> {"index.html"}
   [] s = "UC086_Error_MetadataEntryTooLarge" -> {"index.html"}
@@ -505,7 +501,6 @@ SpecMetadata(s) ==
   [] s = "UC080_Metadata_NoDefaultTopicWhenNoHtml" -> {"Output:project/help.chm"}
   [] s = "UC081_Metadata_FlatOptionArchivePaths" -> {"Contents:toc.hhc", "Index:index.hhk", "Output:project/help.chm"}
   [] s = "UC082_Chm_StringTableDeduplicates" -> {"Output:project/help.chm", "StringTable:Deduplicated", "Title:Project Title", "Window:main"}
-  [] s = "UC083_Error_CollectInputReadFailure" -> {}
   [] s = "UC084_Error_WriterInputReadFailure" -> {"Output:project/help.chm", "Title:Project Title"}
   [] s = "UC085_Error_LockedOutputPreserved" -> {"ExistingOutput:Preserved", "Output:project/help.chm", "Title:Project Title"}
   [] s = "UC086_Error_MetadataEntryTooLarge" -> {"Output:project/help.chm", "Title:Oversized"}
@@ -606,7 +601,6 @@ SpecWriterTags(s) ==
   [] s = "UC080_Metadata_NoDefaultTopicWhenNoHtml" -> {"InternalStreams", "PMGL", "Uncompressed"}
   [] s = "UC081_Metadata_FlatOptionArchivePaths" -> {"InternalStreams", "PMGL", "Uncompressed"}
   [] s = "UC082_Chm_StringTableDeduplicates" -> {"InternalStreams", "PMGL", "StringTableDeduplicated", "Uncompressed"}
-  [] s = "UC083_Error_CollectInputReadFailure" -> {"Skipped"}
   [] s = "UC084_Error_WriterInputReadFailure" -> {"InputReadError", "WriteFailed"}
   [] s = "UC085_Error_LockedOutputPreserved" -> {"ExistingOutputPreserved", "OutputCreateLocked", "WriteFailed"}
   [] s = "UC086_Error_MetadataEntryTooLarge" -> {"MetadataEntryTooLarge", "WriteFailed"}
@@ -628,10 +622,10 @@ SpecStdout(s) ==
     s = "UC001_Cli_NoArgsHelp" -> {"Banner", "Options", "Usage"}
   [] s = "UC002_Cli_HelpOptions" -> {"Banner", "Options", "Usage"}
   [] s = "UC003_Cli_Version" -> {"Banner", "Version"}
-  [] s = "UC004_Cli_UnknownOption" -> {}
-  [] s = "UC005_Cli_OutMissingValue" -> {}
-  [] s = "UC006_Cli_MissingProjectArg" -> {}
-  [] s = "UC007_Cli_MultipleProjects" -> {}
+  [] s = "UC004_Cli_UnknownOption" -> {"Banner", "Options", "Usage"}
+  [] s = "UC005_Cli_OutMissingValue" -> {"Banner", "Options", "Usage"}
+  [] s = "UC006_Cli_MissingProjectArg" -> {"Banner", "Options", "Usage"}
+  [] s = "UC007_Cli_MultipleProjects" -> {"Banner", "Options", "Usage"}
   [] s = "UC008_Hhp_StandardCompile" -> {"Banner", "Compiled", "Files"}
   [] s = "UC009_Hhp_OutRelativeOverride" -> {"Banner", "Compiled", "Files"}
   [] s = "UC010_Hhp_OutAbsoluteOverride" -> {"Banner", "Compiled", "Files"}
@@ -707,7 +701,6 @@ SpecStdout(s) ==
   [] s = "UC080_Metadata_NoDefaultTopicWhenNoHtml" -> {"Banner", "Compiled", "Files"}
   [] s = "UC081_Metadata_FlatOptionArchivePaths" -> {"Banner", "Compiled", "Files"}
   [] s = "UC082_Chm_StringTableDeduplicates" -> {"Banner", "Compiled", "Files"}
-  [] s = "UC083_Error_CollectInputReadFailure" -> {}
   [] s = "UC084_Error_WriterInputReadFailure" -> {}
   [] s = "UC085_Error_LockedOutputPreserved" -> {}
   [] s = "UC086_Error_MetadataEntryTooLarge" -> {}
@@ -729,10 +722,10 @@ SpecStderr(s) ==
     s = "UC001_Cli_NoArgsHelp" -> {}
   [] s = "UC002_Cli_HelpOptions" -> {}
   [] s = "UC003_Cli_Version" -> {}
-  [] s = "UC004_Cli_UnknownOption" -> {"unknown option"}
-  [] s = "UC005_Cli_OutMissingValue" -> {"--out requires a path"}
-  [] s = "UC006_Cli_MissingProjectArg" -> {"missing .hhp project path"}
-  [] s = "UC007_Cli_MultipleProjects" -> {"only one .hhp project"}
+  [] s = "UC004_Cli_UnknownOption" -> {}
+  [] s = "UC005_Cli_OutMissingValue" -> {}
+  [] s = "UC006_Cli_MissingProjectArg" -> {}
+  [] s = "UC007_Cli_MultipleProjects" -> {}
   [] s = "UC008_Hhp_StandardCompile" -> {}
   [] s = "UC009_Hhp_OutRelativeOverride" -> {}
   [] s = "UC010_Hhp_OutAbsoluteOverride" -> {}
@@ -808,7 +801,6 @@ SpecStderr(s) ==
   [] s = "UC080_Metadata_NoDefaultTopicWhenNoHtml" -> {}
   [] s = "UC081_Metadata_FlatOptionArchivePaths" -> {}
   [] s = "UC082_Chm_StringTableDeduplicates" -> {}
-  [] s = "UC083_Error_CollectInputReadFailure" -> {"error", "input file read error"}
   [] s = "UC084_Error_WriterInputReadFailure" -> {"error", "input file read error"}
   [] s = "UC085_Error_LockedOutputPreserved" -> {"error", "output file locked"}
   [] s = "UC086_Error_MetadataEntryTooLarge" -> {"#SYSTEM entry is too large", "error"}
@@ -909,7 +901,6 @@ SpecWarnings(s) ==
   [] s = "UC080_Metadata_NoDefaultTopicWhenNoHtml" -> {}
   [] s = "UC081_Metadata_FlatOptionArchivePaths" -> {}
   [] s = "UC082_Chm_StringTableDeduplicates" -> {}
-  [] s = "UC083_Error_CollectInputReadFailure" -> {}
   [] s = "UC084_Error_WriterInputReadFailure" -> {}
   [] s = "UC085_Error_LockedOutputPreserved" -> {}
   [] s = "UC086_Error_MetadataEntryTooLarge" -> {}
@@ -1010,7 +1001,6 @@ SpecExitCode(s) ==
   [] s = "UC080_Metadata_NoDefaultTopicWhenNoHtml" -> 1
   [] s = "UC081_Metadata_FlatOptionArchivePaths" -> 1
   [] s = "UC082_Chm_StringTableDeduplicates" -> 1
-  [] s = "UC083_Error_CollectInputReadFailure" -> 1
   [] s = "UC084_Error_WriterInputReadFailure" -> 1
   [] s = "UC085_Error_LockedOutputPreserved" -> 1
   [] s = "UC086_Error_MetadataEntryTooLarge" -> 1
@@ -1111,7 +1101,6 @@ SpecChmCreated(s) ==
   [] s = "UC080_Metadata_NoDefaultTopicWhenNoHtml" -> TRUE
   [] s = "UC081_Metadata_FlatOptionArchivePaths" -> TRUE
   [] s = "UC082_Chm_StringTableDeduplicates" -> TRUE
-  [] s = "UC083_Error_CollectInputReadFailure" -> FALSE
   [] s = "UC084_Error_WriterInputReadFailure" -> FALSE
   [] s = "UC085_Error_LockedOutputPreserved" -> FALSE
   [] s = "UC086_Error_MetadataEntryTooLarge" -> FALSE
@@ -1212,7 +1201,6 @@ SpecVisited(s) ==
   [] s = "UC080_Metadata_NoDefaultTopicWhenNoHtml" -> {"CliParsed", "Done", "FilesCollected", "MetadataBuilt", "ProjectLoaded", "Start", "WriterRan"}
   [] s = "UC081_Metadata_FlatOptionArchivePaths" -> {"CliParsed", "Done", "FilesCollected", "MetadataBuilt", "ProjectLoaded", "Start", "WriterRan"}
   [] s = "UC082_Chm_StringTableDeduplicates" -> {"CliParsed", "Done", "FilesCollected", "MetadataBuilt", "ProjectLoaded", "Start", "WriterRan"}
-  [] s = "UC083_Error_CollectInputReadFailure" -> {"CliParsed", "Done", "FilesCollected", "ProjectLoaded", "Start"}
   [] s = "UC084_Error_WriterInputReadFailure" -> {"CliParsed", "Done", "FilesCollected", "MetadataBuilt", "ProjectLoaded", "Start", "WriterRan"}
   [] s = "UC085_Error_LockedOutputPreserved" -> {"CliParsed", "Done", "FilesCollected", "MetadataBuilt", "ProjectLoaded", "Start", "WriterRan"}
   [] s = "UC086_Error_MetadataEntryTooLarge" -> {"CliParsed", "Done", "FilesCollected", "MetadataBuilt", "ProjectLoaded", "Start", "WriterRan"}
