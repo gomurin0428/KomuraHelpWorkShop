@@ -11,7 +11,7 @@ Current executable coverage added in this pass:
 | -- | -- |
 | CHM structural header, chunk, and exact payload seeds | `SmallProjectHasHeaderInternalStreamsAndPmglOnly`, `LargeProjectUsesPmgi`, `ChmStructuralHeaderInvariantsHold`, `ChmDirectoryEntriesResolveExactUserContent` |
 | PATH deterministic escaping/idempotence seeds | `ArchivePathNormalizationPropertySeedsNeverEscape`, `GeneratedArchivePathFuzzSeedsNeverEscape` |
-| PATH outside basename and collision seeds | `OutsideProjectPathsStayInsideArchiveNamespace`, `OutsideProjectBasenameCollisionsWarnAndKeepFirst` |
+| PATH outside basename and collision seeds | `OutsideProjectPathsStayInsideArchiveNamespace`, `OutsideProjectBasenameCollisionsKeepLast` |
 | LINK cleanup/extraction/flat rewrite seeds | `LinkCleaningCoversBoundaryTargets`, `LinkScannerExtractionSeedsCoverSyntax`, `FlatLinkRewriteSeedPropertiesAreStable`, `GeneratedFlatLinkRewriteFuzzSeedsAreIdempotent` |
 | HHP parser syntax, line ending, and encoding decision seeds | `HhpParserBoundaryOptionsAreStable`, `HhpParserEncodingAndLineEndingSeedsAreStable` |
 | ENC invalid UTF-8 fallback and BOM seeds | `JapaneseLanguageStoresCp932Metadata`, `EncodingDetectorFallbackSeedsAreStable`, `GeneratedInvalidUtf8FallbackSeedsSelectFallback`, `Utf16ProjectCompiles` |
@@ -34,7 +34,7 @@ and flat-mode link rewriting.
 | PATH-002 | `C:\outside\topic.html`, `D:/outside/topic.html`, `/outside/topic.html` | Project-declared outside source is stored by basename only after source resolution. |
 | PATH-003 | `\\server\share\topic.html`, `//server/share/topic.html` | UNC and protocol-relative links are not collected as local link-scan inputs. |
 | PATH-004 | `a//b///c.html`, `a/./b/../c.html`, `./index.html` | Normalized non-flat paths are stable under repeated normalization. |
-| PATH-005 | flat mode with `a/index.html`, `b/index.html`, `A/INDEX.HTML` | First-wins duplicate policy and warning behavior are deterministic under case-insensitive comparison. |
+| PATH-005 | flat mode with `a/index.html`, `b/index.html`, `A/INDEX.HTML` | Silent last-wins duplicate policy is deterministic under case-insensitive comparison. |
 
 ## Link Parsing Seeds
 

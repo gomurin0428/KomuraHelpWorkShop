@@ -19,24 +19,17 @@ internal sealed class ProjectCompiler
         var lcid = TryParseSupportedLcid(project.Option("Language")) ?? CultureInfo.CurrentCulture.LCID;
         var helpTextEncoding = TextEncodingDetector.ForLcid(lcid);
         var files = CollectFiles(project, flat, helpTextEncoding);
-        if (files.MissingRequired.Count > 0 && !_options.AllowMissing)
-        {
-            throw new CompilationException(
-                "Missing required files: " + string.Join(", ", files.MissingRequired.Take(8))
-                + (files.MissingRequired.Count > 8 ? " ..." : string.Empty),
-                _warnings);
-        }
 
         WarnForUnsupportedOptions(project);
 
         var outputPath = ResolveOutputPath(project);
-        ValidateOutputDoesNotOverwriteInputs(outputPath, project.ProjectPath, files.InputFiles);
-        var metadata = BuildMetadata(project, outputPath, lcid, helpTextEncoding, files.DefaultTopicArchivePath, files.GeneratedContentsFile);
+        ValidateOutputDoesNotOverwriteInputs(outputPath, project.ProjectPath, files.SourcePathsForOverwriteGuard);
+        var metadata = BuildMetadata(project, outputPath, lcid, helpTextEncoding, files.DefaultTopicArchivePath);
         var writer = new ChmWriter();
         writer.Write(outputPath, files.InputFiles, metadata);
 
         var outputSize = new FileInfo(outputPath).Length;
-        return new CompilationResult(outputPath, files.InputFiles.Count, outputSize, _warnings);
+        return new CompilationResult(outputPath, files.InputFiles.Count, outputSize, files.MissingRequired.Count > 0, _warnings);
     }
 
     private CollectedFiles CollectFiles(HhpProject project, bool flat, System.Text.Encoding helpTextEncoding)
@@ -44,10 +37,13 @@ internal sealed class ProjectCompiler
         var byArchivePath = new Dictionary<string, InputFile>(StringComparer.OrdinalIgnoreCase);
         var queue = new Queue<InputFile>();
         var missingRequired = new List<string>();
+        var rootArchivePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var linksByArchivePath = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        var sourcePathsForOverwriteGuard = new HashSet<string>(FileSystemPathComparer);
 
         string? defaultTopicArchivePath = null;
 
-        void AddPath(
+        string? AddPath(
             string rawPath,
             string reason,
             bool required,
@@ -58,46 +54,57 @@ internal sealed class ProjectCompiler
             var cleaned = isProjectPath ? ArchivePath.CleanProjectPath(rawPath) : ArchivePath.CleanLink(rawPath);
             if (cleaned is null)
             {
-                return;
+                return null;
             }
 
             var sourcePath = ResolveSourcePath(project.ProjectDirectory, cleaned, baseDirectory, isProjectPath);
             var archiveRelative = MakeArchiveRelative(project.ProjectDirectory, sourcePath, cleaned, flat, isProjectPath, archiveBaseDirectory);
             if (archiveRelative.Length == 0)
             {
-                return;
+                return null;
             }
 
             if (!File.Exists(sourcePath))
             {
-                var message = $"{rawPath} ({reason})";
                 if (required)
                 {
-                    missingRequired.Add(message);
+                    missingRequired.Add(rawPath);
+                    _warnings.Add($"HHC5003: Error: Compilation failed while compiling {rawPath}.");
                 }
 
-                _warnings.Add($"file not found: {message}");
-                return;
+                return null;
             }
 
+            var fullSourcePath = Path.GetFullPath(sourcePath);
+            if (required)
+            {
+                rootArchivePaths.Add(archiveRelative);
+                sourcePathsForOverwriteGuard.Add(fullSourcePath);
+            }
+
+            var input = new InputFile(sourcePath, archiveRelative, reason);
             if (byArchivePath.TryGetValue(archiveRelative, out var existing))
             {
-                if (!Path.GetFullPath(existing.SourcePath).Equals(Path.GetFullPath(sourcePath), StringComparison.Ordinal))
+                if (Path.GetFullPath(existing.SourcePath).Equals(Path.GetFullPath(sourcePath), FileSystemPathComparison))
                 {
-                    _warnings.Add($"duplicate archive path '{archiveRelative}' from '{sourcePath}', keeping '{existing.SourcePath}'");
+                    return archiveRelative;
                 }
 
-                return;
+                byArchivePath[archiveRelative] = input;
+            }
+            else
+            {
+                byArchivePath.Add(archiveRelative, input);
             }
 
-            var input = new InputFile(sourcePath, archiveRelative, reason, BuildInputData(sourcePath, helpTextEncoding, flat));
-            byArchivePath.Add(archiveRelative, input);
             queue.Enqueue(input);
 
             if (_options.Verbose)
             {
                 Console.Error.WriteLine($"add: {archiveRelative} <- {sourcePath}");
             }
+
+            return archiveRelative;
         }
 
         foreach (var file in project.Files)
@@ -115,10 +122,15 @@ internal sealed class ProjectCompiler
             AddPath(indexFile, "Index file", required: true, isProjectPath: true);
         }
 
-        var defaultTopic = project.Option("Default topic") ?? project.Files.FirstOrDefault(IsHtmlPath);
+        var configuredDefaultTopic = project.Option("Default topic");
+        var defaultTopic = configuredDefaultTopic ?? project.Files.FirstOrDefault(IsHtmlPath);
         if (defaultTopic is not null)
         {
-            AddPath(defaultTopic, "Default topic", required: true, isProjectPath: true);
+            if (configuredDefaultTopic is not null)
+            {
+                AddPath(defaultTopic, "Default topic", required: true, isProjectPath: true);
+            }
+
             var defaultSource = ResolveSourcePath(project.ProjectDirectory, ArchivePath.CleanProjectPath(defaultTopic) ?? defaultTopic, null, isProjectPath: true);
             defaultTopicArchivePath = MakeArchiveRelative(project.ProjectDirectory, defaultSource, defaultTopic, flat, isProjectPath: true);
         }
@@ -128,34 +140,47 @@ internal sealed class ProjectCompiler
             while (queue.Count > 0)
             {
                 var current = queue.Dequeue();
+                if (!byArchivePath.TryGetValue(current.ArchivePath, out var active) || !ReferenceEquals(active, current))
+                {
+                    continue;
+                }
+
                 var archiveBaseDirectory = ArchivePath.DirectoryName(current.ArchivePath);
+                var scannedLinks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                linksByArchivePath[current.ArchivePath] = scannedLinks;
                 foreach (var link in LinkScanner.ExtractLinks(current.SourcePath, helpTextEncoding))
                 {
-                    AddPath(
+                    var linkedArchivePath = AddPath(
                         link,
                         $"linked from {current.ArchivePath}",
                         required: false,
                         isProjectPath: false,
                         baseDirectory: Path.GetDirectoryName(current.SourcePath),
                         archiveBaseDirectory: archiveBaseDirectory);
+                    if (linkedArchivePath is not null)
+                    {
+                        scannedLinks.Add(linkedArchivePath);
+                    }
                 }
             }
         }
 
-        InputFile? generatedContents = null;
-        if (project.Option("Contents file") is null)
+        var reachableArchivePaths = BuildReachableArchivePaths(rootArchivePaths, byArchivePath, linksByArchivePath);
+        var inputFiles = byArchivePath
+            .Values
+            .Where(file => reachableArchivePaths.Contains(file.ArchivePath))
+            .OrderBy(f => f.ArchivePath, ChmPathComparer.Instance)
+            .ToList();
+        foreach (var inputFile in inputFiles)
         {
-            var generatedArchivePath = UniqueGeneratedContentsArchivePath(byArchivePath);
-            generatedContents = BuildGeneratedContentsFile(byArchivePath.Values, generatedArchivePath, helpTextEncoding);
-            byArchivePath.Add(generatedContents.ArchivePath, generatedContents);
-            _warnings.Add("No Contents file was specified; generated a simple table of contents.");
-            if (!generatedArchivePath.Equals("Table of Contents.hhc", StringComparison.OrdinalIgnoreCase))
-            {
-                _warnings.Add($"Generated contents file uses '{generatedArchivePath}' because 'Table of Contents.hhc' is already present.");
-            }
+            sourcePathsForOverwriteGuard.Add(Path.GetFullPath(inputFile.SourcePath));
         }
 
-        return new CollectedFiles(byArchivePath.Values.OrderBy(f => f.ArchivePath, ChmPathComparer.Instance).ToList(), missingRequired, defaultTopicArchivePath, generatedContents?.ArchivePath);
+        return new CollectedFiles(
+            inputFiles,
+            missingRequired,
+            defaultTopicArchivePath,
+            sourcePathsForOverwriteGuard.OrderBy(path => path, FileSystemPathComparer).ToList());
     }
 
     private string ResolveOutputPath(HhpProject project)
@@ -175,23 +200,23 @@ internal sealed class ProjectCompiler
         return outputPath;
     }
 
-    private static void ValidateOutputDoesNotOverwriteInputs(string outputPath, string projectPath, IReadOnlyList<InputFile> inputFiles)
+    private static void ValidateOutputDoesNotOverwriteInputs(string outputPath, string projectPath, IReadOnlyList<string> inputSourcePaths)
     {
         if (SameFileSystemPath(outputPath, projectPath))
         {
             throw new CompilationException($"Output path would overwrite the project file: {projectPath}");
         }
 
-        foreach (var input in inputFiles)
+        foreach (var inputSourcePath in inputSourcePaths)
         {
-            if (input.SourcePath.Length == 0)
+            if (inputSourcePath.Length == 0)
             {
                 continue;
             }
 
-            if (SameFileSystemPath(outputPath, input.SourcePath))
+            if (SameFileSystemPath(outputPath, inputSourcePath))
             {
-                throw new CompilationException($"Output path would overwrite an input file: {input.SourcePath}");
+                throw new CompilationException($"Output path would overwrite an input file: {inputSourcePath}");
             }
         }
     }
@@ -204,6 +229,49 @@ internal sealed class ProjectCompiler
     private static StringComparison FileSystemPathComparison =>
         OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 
+    private static StringComparer FileSystemPathComparer =>
+        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+
+    private static HashSet<string> BuildReachableArchivePaths(
+        HashSet<string> rootArchivePaths,
+        Dictionary<string, InputFile> byArchivePath,
+        Dictionary<string, HashSet<string>> linksByArchivePath)
+    {
+        var reachable = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var pending = new Stack<string>();
+        foreach (var rootArchivePath in rootArchivePaths)
+        {
+            if (byArchivePath.ContainsKey(rootArchivePath))
+            {
+                pending.Push(rootArchivePath);
+            }
+        }
+
+        while (pending.Count > 0)
+        {
+            var archivePath = pending.Pop();
+            if (!reachable.Add(archivePath))
+            {
+                continue;
+            }
+
+            if (!linksByArchivePath.TryGetValue(archivePath, out var linkedArchivePaths))
+            {
+                continue;
+            }
+
+            foreach (var linkedArchivePath in linkedArchivePaths)
+            {
+                if (byArchivePath.ContainsKey(linkedArchivePath))
+                {
+                    pending.Push(linkedArchivePath);
+                }
+            }
+        }
+
+        return reachable;
+    }
+
 
     private static string? NormalizeFileSystemPath(string? path)
     {
@@ -212,18 +280,17 @@ internal sealed class ProjectCompiler
             .Replace('/', Path.DirectorySeparatorChar);
     }
 
-    private ChmMetadata BuildMetadata(HhpProject project, string outputPath, int lcid, System.Text.Encoding helpTextEncoding, string? defaultTopicArchivePath, string? generatedContentsArchivePath)
+    private ChmMetadata BuildMetadata(HhpProject project, string outputPath, int lcid, System.Text.Encoding helpTextEncoding, string? defaultTopicArchivePath)
     {
         var compiledStem = Path.GetFileNameWithoutExtension(outputPath).ToLowerInvariant();
-        var contentsFile = NormalizeOptionArchivePath(project, project.Option("Contents file"), project.OptionIsYes("Flat"))
-            ?? generatedContentsArchivePath;
+        var contentsFile = NormalizeOptionArchivePath(project, project.Option("Contents file"), project.OptionIsYes("Flat"));
         var defaultWindow = project.Option("Default Window") ?? "main";
         return new ChmMetadata(
             Title: project.Option("Title") ?? Path.GetFileNameWithoutExtension(project.ProjectPath),
             DefaultTopic: defaultTopicArchivePath,
             ContentsFile: contentsFile,
             IndexFile: NormalizeOptionArchivePath(project, project.Option("Index file"), project.OptionIsYes("Flat")),
-            ContentsFileGenerated: generatedContentsArchivePath is not null,
+            ContentsFileGenerated: false,
             DefaultWindow: defaultWindow,
             DefaultFont: project.Option("Default Font"),
             CompiledFileStem: compiledStem,
@@ -383,102 +450,6 @@ internal sealed class ProjectCompiler
         return full.StartsWith(dir, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string UniqueGeneratedContentsArchivePath(IReadOnlyDictionary<string, InputFile> byArchivePath)
-    {
-        const string defaultName = "Table of Contents.hhc";
-        if (!byArchivePath.ContainsKey(defaultName))
-        {
-            return defaultName;
-        }
-
-        for (var index = 2; ; index++)
-        {
-            var candidate = $"Table of Contents {index}.hhc";
-            if (!byArchivePath.ContainsKey(candidate))
-            {
-                return candidate;
-            }
-        }
-    }
-
-    private static InputFile BuildGeneratedContentsFile(IEnumerable<InputFile> files, string archivePath, System.Text.Encoding encoding)
-    {
-        var topics = files
-            .Where(f => IsHtmlFile(f.ArchivePath))
-            .OrderBy(f => f.ArchivePath, ChmPathComparer.Instance)
-            .ToList();
-
-        var lines = new List<string>
-        {
-            "<!DOCTYPE HTML PUBLIC \"-//IETF//DTD HTML//EN\">",
-            "<html>",
-            "<head><meta name=\"GENERATOR\" content=\"KomuraHhc\"></head>",
-            "<body>",
-            "<ul>"
-        };
-
-        foreach (var topic in topics)
-        {
-            var title = Path.GetFileNameWithoutExtension(topic.ArchivePath);
-            lines.Add("  <li><object type=\"text/sitemap\">");
-            lines.Add($"    <param name=\"Name\" value=\"{EscapeHtml(title)}\">");
-            lines.Add($"    <param name=\"Local\" value=\"{EscapeHtml(EscapeLocalUrl(topic.ArchivePath))}\">");
-            lines.Add("  </object></li>");
-        }
-
-        lines.Add("</ul>");
-        lines.Add("</body>");
-        lines.Add("</html>");
-
-        var text = string.Join("\r\n", lines) + "\r\n";
-        return new InputFile(string.Empty, archivePath, "Generated contents", encoding.GetBytes(text));
-    }
-
-    private static byte[]? BuildInputData(string sourcePath, System.Text.Encoding helpTextEncoding, bool flat)
-    {
-        var extension = Path.GetExtension(sourcePath);
-        if (extension.Equals(".hhc", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".hhk", StringComparison.OrdinalIgnoreCase))
-        {
-            var text = TextEncodingDetector.Read(sourcePath, helpTextEncoding).Text;
-            if (flat)
-            {
-                text = LinkScanner.RewriteLinksForFlatArchive(text);
-            }
-
-            return helpTextEncoding.GetBytes(text);
-        }
-
-        if (!flat || !IsRewritableTextFile(extension))
-        {
-            return null;
-        }
-
-        var textFile = TextEncodingDetector.Read(sourcePath, helpTextEncoding);
-        return EncodeWithPreamble(textFile.Encoding, LinkScanner.RewriteLinksForFlatArchive(textFile.Text), textFile.Preamble);
-    }
-
-    private static byte[] EncodeWithPreamble(System.Text.Encoding encoding, string text, byte[] preamble)
-    {
-        var body = encoding.GetBytes(text);
-        if (preamble.Length == 0)
-        {
-            return body;
-        }
-
-        var bytes = new byte[preamble.Length + body.Length];
-        Buffer.BlockCopy(preamble, 0, bytes, 0, preamble.Length);
-        Buffer.BlockCopy(body, 0, bytes, preamble.Length, body.Length);
-        return bytes;
-    }
-
-    private static bool IsRewritableTextFile(string extension)
-    {
-        return extension.Equals(".htm", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".html", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".css", StringComparison.OrdinalIgnoreCase);
-    }
-
     private static bool IsHtmlFile(string archivePath)
     {
         var extension = Path.GetExtension(archivePath);
@@ -492,26 +463,11 @@ internal sealed class ProjectCompiler
         return IsHtmlFile(cleaned);
     }
 
-    private static string EscapeLocalUrl(string archivePath)
-    {
-        var normalized = archivePath.Replace('\\', '/');
-        return string.Join('/', normalized.Split('/').Select(Uri.EscapeDataString));
-    }
-
-    private static string EscapeHtml(string value)
-    {
-        return value
-            .Replace("&", "&amp;", StringComparison.Ordinal)
-            .Replace("\"", "&quot;", StringComparison.Ordinal)
-            .Replace("<", "&lt;", StringComparison.Ordinal)
-            .Replace(">", "&gt;", StringComparison.Ordinal);
-    }
-
     private sealed record CollectedFiles(
         IReadOnlyList<InputFile> InputFiles,
         IReadOnlyList<string> MissingRequired,
         string? DefaultTopicArchivePath,
-        string? GeneratedContentsFile);
+        IReadOnlyList<string> SourcePathsForOverwriteGuard);
 }
 
 internal sealed record InputFile(string SourcePath, string ArchivePath, string Reason, byte[]? Data = null);

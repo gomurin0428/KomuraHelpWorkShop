@@ -135,10 +135,10 @@ Feature: Additional Komura HHC edge cases covered by TLA+
       Then compilation exits with an error
       And no CHM file is created
 
-    Scenario: UC087 generated contents escapes HTML-sensitive topic names
-      Given generated contents include topic names with HTML-sensitive characters
-      When the generated contents file is embedded
-      Then the generated Local and Name values are escaped
+    Scenario: UC087 omitted contents does not synthesize an escaped TOC
+      Given contents are omitted and topic names include HTML-sensitive characters
+      When the project is compiled
+      Then no generated contents file is embedded
 
   Rule: PR review edge cases remain protected
 
@@ -148,10 +148,10 @@ Feature: Additional Komura HHC edge cases covered by TLA+
       When links are scanned for inclusion
       Then topics/chapter.html is collected as the linked topic
 
-    Scenario: UC089 generated TOC escapes reserved Local URLs
-      Given generated contents include topic archive names with # or literal percent escapes
-      When the compiler writes the generated contents file
-      Then generated Local values are URL-escaped so they still address the embedded topic filenames
+    Scenario: UC089 omitted contents does not synthesize a reserved-name TOC
+      Given contents are omitted and topic archive names include # or literal percent escapes
+      When the project is compiled
+      Then no generated contents file is embedded and the topic files remain directly stored
 
     Scenario: UC090 project path HTML entities remain literal
       Given the HHP [FILES] section lists docs/a&amp;b.html
@@ -184,12 +184,12 @@ Feature: Additional Komura HHC edge cases covered by TLA+
       When compilation validates the output path
       Then compilation fails before writing output bytes
 
-    Scenario: UC096 case-only source collisions warn
+    Scenario: UC096 case-only source collisions are quiet
       Given two source files differ only by case but normalize to the same CHM archive path
       When files are collected on a case-sensitive filesystem
-      Then the compiler warns about the duplicate archive path and keeps the first payload
+      Then the compiler does not warn about the duplicate archive path and keeps the active payload
 
-    Scenario: UC097 flat rewrite preserves reserved filename escapes
-      Given Flat mode rewrites a local URL whose basename contains an encoded reserved character
+    Scenario: UC097 flat archives preserve reserved filename escapes in payload links
+      Given Flat mode embeds a file whose basename contains an encoded reserved character
       When the archive path is flattened
-      Then the decoded basename selects the embedded file and the rewritten URL preserves the reserved-character escape
+      Then the decoded basename selects the embedded file and the original payload URL preserves the reserved-character escape

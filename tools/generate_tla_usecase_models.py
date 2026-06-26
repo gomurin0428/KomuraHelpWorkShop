@@ -27,6 +27,7 @@ ALL_ARCHIVE_PATHS = {
     "Table of Contents.hhc",
     "downloads/manual.pdf",
     "shared/page.html",
+    "page.html",
     "usage.html",
     "help.css",
     "site.css",
@@ -46,7 +47,7 @@ ALL_COLLECTION_TAGS = {
     "ExplicitFiles",
     "RequiredFiles",
     "DefaultTopicFirstHtml",
-    "GeneratedContents",
+    "NoGeneratedContents",
     "MissingRequired",
     "CollectFailed",
     "AllowMissing",
@@ -86,9 +87,9 @@ ALL_COLLECTION_TAGS = {
     "AnsiFallback",
     "LanguageParsed",
     "TruthyOption",
-    "GeneratedContentsEscaped",
+
     "BaseFragment",
-    "GeneratedContentsLocalUrlEscaped",
+
     "ProjectEntityLiteral",
     "ExternalBasePreserved",
     "AllAbsoluteSchemesExternal",
@@ -101,7 +102,6 @@ ALL_COLLECTION_TAGS = {
     "UnsupportedWarning",
     "SourceTocEmbedded",
     "SourceIndexEmbedded",
-    "CollectInputReadError",
 }
 
 ALL_METADATA_TAGS = {
@@ -120,6 +120,8 @@ ALL_METADATA_TAGS = {
     "Title:Product Help",
     "DefaultTopic:index.html",
     "DefaultTopic:topics/start.html",
+    "DefaultTopic:topic-&-one.html",
+    "DefaultTopic:C#Guide.html",
     "Contents:toc.hhc",
     "Contents:Table of Contents.hhc",
     "Index:index.hhk",
@@ -137,9 +139,9 @@ ALL_METADATA_TAGS = {
     "LCID:0x0411-no-prefix",
     "DBCS:true",
     "FullTextSearch:false",
-    "ContentsGenerated:true",
-    "GeneratedContentsEscaped:true",
-    "GeneratedContentsLocalUrlEscaped:true",
+
+
+
     "OutputDirectoryCreated:true",
     "Hhp:CommentsIgnored",
     "Hhp:CaseInsensitive",
@@ -148,8 +150,8 @@ ALL_METADATA_TAGS = {
     "Hhp:BlankOptionIgnored",
     "Hhp:UnbalancedQuoteLiteral",
     "Hhp:PreSectionIgnored",
-    "KeptSource:a/index.html",
-    "LinksRewrittenForFlat:true",
+    "KeptSource:b/index.html",
+
     "StringTable:Deduplicated",
     "ExistingOutput:Preserved",
     "MergeFiles:metadata-only",
@@ -183,12 +185,8 @@ ALL_WRITER_TAGS = {
 ALL_STDOUT = {"Banner", "Usage", "Options", "Version", "Compiled", "Files"}
 
 ALL_STDERR = {
-    "unknown option",
-    "--out requires a path",
-    "missing .hhp project path",
-    "only one .hhp project",
-    "Project file not found",
-    "Missing required files",
+    "Unable to open",
+    "HHC5003",
     "error",
     "Directory entry is too large",
     "directory is too large for this compiler version",
@@ -201,9 +199,9 @@ ALL_STDERR = {
 }
 
 ALL_WARNINGS = {
-    "file not found",
-    "generated toc",
-    "duplicate archive path",
+    "HHC5003",
+
+
     "Full-text search index generation is not implemented",
     "Binary TOC is not implemented",
     "Binary Index is not implemented",
@@ -226,7 +224,7 @@ class UseCase:
     stdout: frozenset[str] = field(default_factory=lambda: frozenset({"Banner", "Compiled", "Files"}))
     stderr: frozenset[str] = field(default_factory=frozenset)
     warnings: frozenset[str] = field(default_factory=frozenset)
-    exit_code: int = 0
+    exit_code: int = 1
     chm_created: bool = True
     impl: tuple[str, ...] = ("CliOptions.Parse", "HhpProject.Load", "ProjectCompiler.CollectFiles", "ProjectCompiler.BuildMetadata", "ChmWriter.Write")
     specific: tuple[str, ...] = ()
@@ -250,7 +248,7 @@ def tags(*items: str) -> frozenset[str]:
     return frozenset(items)
 
 
-def cli(num: int, module: str, title: str, mode: str, stdout=(), stderr=(), exit_code=0) -> UseCase:
+def cli(num: int, module: str, title: str, mode: str, stdout=(), stderr=(), exit_code=24) -> UseCase:
     return UseCase(
         num=num,
         module=module,
@@ -282,11 +280,11 @@ def project_missing(num: int, module: str, title: str) -> UseCase:
         metadata=frozenset(),
         writer_tags=tags("Skipped"),
         stdout=frozenset(),
-        stderr=tags("Project file not found"),
-        exit_code=1,
+        stderr=tags("Unable to open"),
+        exit_code=0,
         chm_created=False,
         impl=("CliOptions.Parse", "HhpProject.Load", "Program.Main"),
-        specific=('projectState = "Missing"', "exitCode = 1", "chmCreated = FALSE"),
+        specific=('projectState = "Missing"', "exitCode = 0", "chmCreated = FALSE"),
     )
 
 
@@ -348,7 +346,7 @@ def write_fail(num: int, module: str, title: str, writer_tags=(), stderr=()) -> 
 
 COMPILE_IMPL = ("CliOptions.Parse", "HhpProject.Load", "ProjectCompiler.CollectFiles", "ProjectCompiler.BuildMetadata", "ChmWriter.Write")
 LINK_IMPL = ("CliOptions.Parse", "HhpProject.Load", "ProjectCompiler.CollectFiles", "LinkScanner.ExtractLinks", "ArchivePath.CleanLink", "ChmWriter.Write")
-FLAT_IMPL = ("CliOptions.Parse", "HhpProject.Load", "ProjectCompiler.CollectFiles", "ArchivePath.NormalizeForArchive", "LinkScanner.RewriteLinksForFlatArchive", "ChmWriter.Write")
+FLAT_IMPL = ("CliOptions.Parse", "HhpProject.Load", "ProjectCompiler.CollectFiles", "ArchivePath.NormalizeForArchive", "LinkScanner.ExtractLinks", "ChmWriter.Write")
 ENCODING_IMPL = ("CliOptions.Parse", "HhpProject.Load", "TextEncodingDetector.Read", "TextEncodingDetector.ForLcid", "ProjectCompiler.BuildMetadata", "ChmWriter.Write")
 WRITER_IMPL = ("CliOptions.Parse", "HhpProject.Load", "ProjectCompiler.CollectFiles", "ProjectCompiler.BuildMetadata", "ChmWriter.Write")
 
@@ -356,11 +354,11 @@ WRITER_IMPL = ("CliOptions.Parse", "HhpProject.Load", "ProjectCompiler.CollectFi
 CASES: list[UseCase] = [
     cli(1, "Cli_NoArgsHelp", "no arguments prints help", "Help", stdout=("Banner", "Usage", "Options")),
     cli(2, "Cli_HelpOptions", "help option variants print help", "Help", stdout=("Banner", "Usage", "Options"),),
-    cli(3, "Cli_Version", "version option prints version", "Version", stdout=("Banner", "Version")),
-    cli(4, "Cli_UnknownOption", "unknown option is an argument error", "ArgError", stderr=("unknown option",), exit_code=2),
-    cli(5, "Cli_OutMissingValue", "missing --out value is an argument error", "ArgError", stderr=("--out requires a path",), exit_code=2),
-    cli(6, "Cli_MissingProjectArg", "missing project path is an argument error", "ArgError", stderr=("missing .hhp project path",), exit_code=2),
-    cli(7, "Cli_MultipleProjects", "multiple project paths are rejected", "ArgError", stderr=("only one .hhp project",), exit_code=2),
+    cli(3, "Cli_Version", "version option prints help with version", "Version", stdout=("Banner", "Version", "Usage", "Options")),
+    cli(4, "Cli_UnknownOption", "unknown option is an argument error", "ArgError", stdout=("Banner", "Usage", "Options")),
+    cli(5, "Cli_OutMissingValue", "missing --out value is an argument error", "ArgError", stdout=("Banner", "Usage", "Options")),
+    cli(6, "Cli_MissingProjectArg", "missing project path is an argument error", "ArgError", stdout=("Banner", "Usage", "Options")),
+    cli(7, "Cli_MultipleProjects", "multiple project paths are rejected", "ArgError", stdout=("Banner", "Usage", "Options")),
 
     UseCase(8, "Hhp_StandardCompile", "standard HHP compile", collection_tags=tags("RequiredFiles"), archive=tags("index.html", "topics/intro.html", "toc.hhc", "index.hhk"), metadata=tags("Output:project/help.chm", "Title:Project Title", "DefaultTopic:index.html", "Contents:toc.hhc", "Index:index.hhk"), impl=COMPILE_IMPL, specific=('"index.html" \\in archive', '"toc.hhc" \\in archive', '"DefaultTopic:index.html" \\in metadata')),
     UseCase(9, "Hhp_OutRelativeOverride", "relative --out overrides compiled file", collection_tags=tags("RequiredFiles"), archive=tags("index.html"), metadata=tags("Output:project/dist/output.chm", "Title:Project Title"), impl=COMPILE_IMPL, specific=('"Output:project/dist/output.chm" \\in metadata',)),
@@ -375,11 +373,11 @@ CASES: list[UseCase] = [
 
     UseCase(18, "Files_RequiredFiles", "required HHP files are collected", collection_tags=tags("RequiredFiles"), archive=tags("index.html", "toc.hhc", "index.hhk", "topics/start.html"), metadata=tags("Output:project/help.chm", "DefaultTopic:topics/start.html"), impl=COMPILE_IMPL, specific=('"topics/start.html" \\in archive', '"DefaultTopic:topics/start.html" \\in metadata')),
     UseCase(19, "Files_DefaultTopicFirstHtml", "first HTML file becomes default topic", collection_tags=tags("DefaultTopicFirstHtml"), archive=tags("readme.txt", "index.html"), metadata=tags("Output:project/help.chm", "DefaultTopic:index.html"), impl=COMPILE_IMPL, specific=('"DefaultTopic:index.html" \\in metadata',)),
-    UseCase(20, "Files_GenerateContents", "missing contents file generates simple TOC", collection_tags=tags("GeneratedContents"), archive=tags("index.html", "topics/usage.html", "Table of Contents.hhc"), metadata=tags("Output:project/help.chm", "Contents:Table of Contents.hhc", "ContentsGenerated:true"), warnings=tags("generated toc"), impl=COMPILE_IMPL, specific=('"GeneratedContents" \\in collectionTags', '"Table of Contents.hhc" \\in archive', '"generated toc" \\in warnings')),
-    collect_fail(21, "Files_MissingRequiredFails", "missing required file fails by default", stderr=("Missing required files",), warnings=("file not found",)),
-    UseCase(22, "Files_AllowMissing", "allow-missing turns required absence into warning", collection_tags=tags("AllowMissing", "MissingRequired"), archive=tags("index.html"), warnings=tags("file not found"), impl=COMPILE_IMPL, specific=('"AllowMissing" \\in collectionTags', '"index.html" \\in archive', '"file not found" \\in warnings')),
+    UseCase(20, "Files_NoGeneratedContents", "omitted contents file does not synthesize a TOC", collection_tags=tags("NoGeneratedContents"), archive=tags("index.html", "topics/usage.html"), metadata=tags("Output:project/help.chm", "DefaultTopic:index.html"), impl=COMPILE_IMPL, specific=('"NoGeneratedContents" \\in collectionTags', '"Table of Contents.hhc" \\notin archive', '"Contents:Table of Contents.hhc" \\notin metadata')),
+    UseCase(21, "Files_MissingRequiredPartial", "missing required file emits HHC5003 and a partial CHM", collection_tags=tags("MissingRequired"), archive=frozenset(), warnings=tags("HHC5003"), exit_code=0, impl=COMPILE_IMPL, specific=('"MissingRequired" \\in collectionTags', 'archive = {}', '"HHC5003" \\in warnings', "exitCode = 0", "chmCreated = TRUE")),
+    UseCase(22, "Files_AllowMissing", "allow-missing retains HHC5003 partial-output behavior", collection_tags=tags("AllowMissing", "MissingRequired"), archive=tags("index.html"), warnings=tags("HHC5003"), exit_code=0, impl=COMPILE_IMPL, specific=('"AllowMissing" \\in collectionTags', '"index.html" \\in archive', '"HHC5003" \\in warnings', "exitCode = 0")),
     UseCase(23, "Files_DuplicateSameFile", "same archive path for same file is deduplicated", collection_tags=tags("DuplicateSameFile"), archive=tags("index.html"), impl=COMPILE_IMPL, specific=('archive = {"index.html"}',)),
-    UseCase(24, "Files_DuplicateConflict", "conflicting duplicate archive path keeps first file", collection_tags=tags("DuplicateConflict", "Flat"), archive=tags("index.html"), metadata=tags("Output:project/help.chm", "KeptSource:a/index.html"), warnings=tags("duplicate archive path"), impl=COMPILE_IMPL, specific=('"DuplicateConflict" \\in collectionTags', '"KeptSource:a/index.html" \\in metadata', '"duplicate archive path" \\in warnings')),
+    UseCase(24, "Files_DuplicateConflict", "conflicting duplicate archive path silently keeps last file", collection_tags=tags("DuplicateConflict", "Flat"), archive=tags("index.html"), metadata=tags("Output:project/help.chm", "KeptSource:b/index.html"), impl=COMPILE_IMPL, specific=('"DuplicateConflict" \\in collectionTags', '"KeptSource:b/index.html" \\in metadata', "warnings = {}")),
     UseCase(25, "Files_Verbose", "verbose logs collected files", collection_tags=tags("VerboseLog"), archive=tags("index.html"), stderr=tags("add log"), impl=COMPILE_IMPL, specific=('"VerboseLog" \\in collectionTags', '"add log" \\in stderr')),
 
     UseCase(26, "Links_HtmlHrefSrc", "HTML href and src links are recursively collected", collection_tags=tags("LinkScan", "HtmlLinks"), archive=tags("index.html", "topics/intro.html", "images/logo.png", "styles/site.css"), impl=LINK_IMPL, specific=('"HtmlLinks" \\in collectionTags', '"topics/intro.html" \\in archive', '"styles/site.css" \\in archive')),
@@ -392,13 +390,13 @@ CASES: list[UseCase] = [
     UseCase(33, "Links_RelativeBase", "relative links are resolved from source directory", collection_tags=tags("LinkScan", "RelativeBase"), archive=tags("topics/intro.html", "images/logo.png"), impl=LINK_IMPL, specific=('"RelativeBase" \\in collectionTags', '"images/logo.png" \\in archive')),
     UseCase(34, "Links_RootRelative", "root-relative links are resolved from project directory", collection_tags=tags("LinkScan", "RootRelative"), archive=tags("topics/intro.html", "images/logo.png"), impl=LINK_IMPL, specific=('"RootRelative" \\in collectionTags', '"images/logo.png" \\in archive')),
     UseCase(35, "Links_NonScannable", "non-scannable files do not produce links", collection_tags=tags("NonScannable"), archive=tags("downloads/manual.pdf"), impl=LINK_IMPL, specific=('"NonScannable" \\in collectionTags', 'archive = {"downloads/manual.pdf"}')),
-    UseCase(36, "Links_OptionalMissing", "optional linked file absence warns but succeeds", collection_tags=tags("LinkScan", "OptionalMissing"), archive=tags("index.html"), warnings=tags("file not found"), impl=LINK_IMPL, specific=('"OptionalMissing" \\in collectionTags', '"file not found" \\in warnings', "exitCode = 0")),
+    UseCase(36, "Links_OptionalMissing", "optional linked file absence is silently skipped", collection_tags=tags("LinkScan", "OptionalMissing"), archive=tags("index.html"), impl=LINK_IMPL, specific=('"OptionalMissing" \\in collectionTags', "warnings = {}", "exitCode = 1")),
 
     UseCase(37, "Paths_NormalArchivePath", "normal mode preserves project-relative archive path", collection_tags=tags("NormalizeArchivePath"), archive=tags("topics/usage.html"), impl=FLAT_IMPL, specific=('"topics/usage.html" \\in archive',)),
     UseCase(38, "Paths_NormalizeDots", "path separators and dot segments are normalized", collection_tags=tags("NormalizeDots"), archive=tags("index.html"), impl=FLAT_IMPL, specific=('"NormalizeDots" \\in collectionTags', 'archive = {"index.html"}')),
     UseCase(39, "Paths_OutsideRelativeLink", "outside relative links use archive base directory", collection_tags=tags("ArchiveBaseDirectory", "LinkScan"), archive=tags("topics/intro.html", "shared/page.html"), impl=FLAT_IMPL, specific=('"ArchiveBaseDirectory" \\in collectionTags', '"shared/page.html" \\in archive')),
     UseCase(40, "Paths_FlatNames", "Flat mode stores file names only", collection_tags=tags("Flat", "FlatArchive"), archive=tags("usage.html", "help.css"), impl=FLAT_IMPL, specific=('"FlatArchive" \\in collectionTags', '"usage.html" \\in archive', '"help.css" \\in archive')),
-    UseCase(41, "Paths_FlatRewrite", "Flat mode rewrites local references", collection_tags=tags("Flat", "FlatRewrite", "LinkScan"), archive=tags("index.html", "site.css", "toc.hhc", "usage.html", "logo.png", "bg.png"), metadata=tags("Output:project/help.chm", "LinksRewrittenForFlat:true"), impl=FLAT_IMPL, specific=('"FlatRewrite" \\in collectionTags', '"LinksRewrittenForFlat:true" \\in metadata', '"logo.png" \\in archive')),
+    UseCase(41, "Paths_FlatPayloadPreserved", "Flat mode flattens archive paths without rewriting payload links", collection_tags=tags("Flat", "FlatRewrite", "LinkScan"), archive=tags("index.html", "site.css", "toc.hhc", "usage.html", "logo.png", "bg.png"), metadata=tags("Output:project/help.chm"), impl=FLAT_IMPL, specific=('"FlatRewrite" \\in collectionTags', '"logo.png" \\in archive', '"LinksRewrittenForFlat:true" \\notin metadata')),
 
     UseCase(42, "Encoding_BomText", "BOM text files are read by BOM", collection_tags=tags("BomDetected"), archive=tags("index.html"), metadata=tags("Output:project/help.chm", "Encoding:BOM"), impl=ENCODING_IMPL, specific=('"BomDetected" \\in collectionTags', '"Encoding:BOM" \\in metadata')),
     UseCase(43, "Encoding_StrictUtf8", "BOM-less valid UTF-8 is read as UTF-8", collection_tags=tags("Utf8Strict"), archive=tags("index.html"), metadata=tags("Output:project/help.chm", "Encoding:UTF8"), impl=ENCODING_IMPL, specific=('"Utf8Strict" \\in collectionTags', '"Encoding:UTF8" \\in metadata')),
@@ -427,39 +425,38 @@ CASES: list[UseCase] = [
     write_fail(63, "Error_DirectoryTooLarge", "directory too large for compiler version fails", writer_tags=("DirectoryTooLarge",), stderr=("directory is too large for this compiler version",)),
 
     cli(64, "Cli_HelpShortCircuits", "help option short-circuits later arguments", "Help", stdout=("Banner", "Usage", "Options")),
-    cli(65, "Cli_VersionShortCircuits", "version option short-circuits project loading", "Version", stdout=("Banner", "Version")),
+    cli(65, "Cli_VersionShortCircuits", "version option short-circuits with help output", "Version", stdout=("Banner", "Version", "Usage", "Options")),
     UseCase(66, "Cli_RepeatedOutLastWins", "repeated output option uses the last value", collection_tags=tags("RequiredFiles"), archive=tags("index.html"), metadata=tags("Output:project/final.chm", "Title:Project Title", "Hhp:LastOptionWins"), impl=COMPILE_IMPL, specific=('"Output:project/final.chm" \\in metadata', '"Hhp:LastOptionWins" \\in metadata')),
     UseCase(67, "Cli_OutBeforeProject", "output option before the project path is accepted", collection_tags=tags("RequiredFiles"), archive=tags("index.html"), metadata=tags("Output:project/dist/output.chm", "Title:Project Title"), impl=COMPILE_IMPL, specific=('"Output:project/dist/output.chm" \\in metadata',)),
     UseCase(68, "Hhp_BlankCompiledFileIgnored", "blank compiled file option falls back to project stem", collection_tags=tags("RequiredFiles"), archive=tags("index.html"), metadata=tags("Output:project/manual.chm", "Title:manual", "Hhp:BlankOptionIgnored"), impl=COMPILE_IMPL, specific=('"Hhp:BlankOptionIgnored" \\in metadata', '"Output:project/manual.chm" \\in metadata')),
     UseCase(69, "Hhp_UnbalancedQuoteLiteral", "unbalanced quoted option value is kept literally", collection_tags=tags("ExplicitFiles"), archive=tags("index.html"), metadata=tags("Output:project/help.chm", "Title:'Open", "Hhp:UnbalancedQuoteLiteral"), impl=COMPILE_IMPL, specific=('"Title:\'Open" \\in metadata', '"Hhp:UnbalancedQuoteLiteral" \\in metadata')),
     UseCase(70, "Hhp_TruthyFlatOn", "truthy Flat option values enable flat archive mode", collection_tags=tags("Flat", "FlatArchive", "TruthyOption"), archive=tags("usage.html", "help.css"), metadata=tags("Output:project/help.chm", "Title:Project Title"), impl=FLAT_IMPL, specific=('"TruthyOption" \\in collectionTags', '"usage.html" \\in archive', '"help.css" \\in archive')),
-    UseCase(71, "Files_DotPathIgnored", "project paths that normalize to an empty archive path are skipped", collection_tags=tags("DotPathIgnored", "GeneratedContents"), archive=tags("Table of Contents.hhc"), metadata=tags("Output:project/help.chm", "Contents:Table of Contents.hhc", "ContentsGenerated:true"), warnings=tags("generated toc"), impl=COMPILE_IMPL, specific=('"DotPathIgnored" \\in collectionTags', 'archive = {"Table of Contents.hhc"}', '"generated toc" \\in warnings')),
+    UseCase(71, "Files_DotPathIgnored", "project paths that normalize to an empty archive path are skipped", collection_tags=tags("DotPathIgnored"), archive=tags("index.html"), metadata=tags("Output:project/help.chm", "DefaultTopic:index.html"), impl=COMPILE_IMPL, specific=('"DotPathIgnored" \\in collectionTags', 'archive = {"index.html"}', "warnings = {}")),
     UseCase(72, "Files_AbsoluteProjectFileNameOnly", "rooted project file outside the project stores the file name", collection_tags=tags("AbsoluteProjectFile"), archive=tags("asset.bin"), metadata=tags("Output:project/help.chm", "Title:Project Title"), impl=COMPILE_IMPL, specific=('"AbsoluteProjectFile" \\in collectionTags', 'archive = {"asset.bin"}')),
-    UseCase(73, "Files_OutsideRelativeProjectPath", "relative project file outside the project is normalized into the archive", collection_tags=tags("OutsideProjectFile"), archive=tags("shared/page.html"), metadata=tags("Output:project/help.chm", "Title:Project Title"), impl=COMPILE_IMPL, specific=('"OutsideProjectFile" \\in collectionTags', 'archive = {"shared/page.html"}')),
+    UseCase(73, "Files_OutsideRelativeProjectPath", "relative project file outside the project is stored by basename", collection_tags=tags("OutsideProjectFile"), archive=tags("page.html"), metadata=tags("Output:project/help.chm", "Title:Project Title"), impl=COMPILE_IMPL, specific=('"OutsideProjectFile" \\in collectionTags', 'archive = {"page.html"}')),
     UseCase(74, "Links_EmptyAndFragmentIgnored", "empty and fragment-only links are ignored without warnings", collection_tags=tags("LinkScan", "EmptyLinkIgnored"), archive=tags("index.html"), impl=LINK_IMPL, specific=('"EmptyLinkIgnored" \\in collectionTags', 'archive = {"index.html"}', "warnings = {}")),
     UseCase(75, "Links_UncIgnored", "network-share style links are ignored as non-local targets", collection_tags=tags("UncLinkIgnored"), archive=tags("index.html"), impl=LINK_IMPL, specific=('"UncLinkIgnored" \\in collectionTags', 'archive = {"index.html"}', "warnings = {}")),
     UseCase(76, "Links_MalformedPercentKept", "malformed percent escapes keep their original spelling", collection_tags=tags("LinkScan", "MalformedPercentKept"), archive=tags("index.html", "bad%ZZ.html"), impl=LINK_IMPL, specific=('"MalformedPercentKept" \\in collectionTags', '"bad%ZZ.html" \\in archive')),
-    UseCase(77, "Links_ReadErrorAbsorbed", "link scanner read failures are absorbed as no outgoing links", collection_tags=tags("LinkScan", "LinkReadFailed"), archive=tags("index.html"), impl=LINK_IMPL, specific=('"LinkReadFailed" \\in collectionTags', 'archive = {"index.html"}', "exitCode = 0")),
+    UseCase(77, "Links_ReadErrorAbsorbed", "link scanner read failures are absorbed as no outgoing links", collection_tags=tags("LinkScan", "LinkReadFailed"), archive=tags("index.html"), impl=LINK_IMPL, specific=('"LinkReadFailed" \\in collectionTags', 'archive = {"index.html"}', "exitCode = 1")),
     UseCase(78, "Encoding_InvalidUtf8Fallback", "invalid UTF-8 without BOM falls back to the selected ANSI encoding", collection_tags=tags("InvalidUtf8Fallback", "AnsiFallback"), archive=tags("index.html"), metadata=tags("Output:project/help.chm", "Encoding:InvalidUtf8Fallback", "TextEncoding:AnsiFallback"), impl=ENCODING_IMPL, specific=('"InvalidUtf8Fallback" \\in collectionTags', '"Encoding:InvalidUtf8Fallback" \\in metadata')),
     UseCase(79, "Encoding_LanguageHexWithoutPrefix", "Language LCID can be parsed without the 0x prefix", collection_tags=tags("LanguageParsed", "HexLanguageWithoutPrefix"), archive=tags("toc.hhc"), metadata=tags("Output:project/help.chm", "LCID:0x0411-no-prefix", "TextEncoding:CP932", "DBCS:true"), impl=ENCODING_IMPL, specific=('"HexLanguageWithoutPrefix" \\in collectionTags', '"LCID:0x0411-no-prefix" \\in metadata')),
-    UseCase(80, "Metadata_NoDefaultTopicWhenNoHtml", "projects with no HTML file omit the default topic", collection_tags=tags("GeneratedContents", "NoDefaultTopic"), archive=tags("readme.txt", "Table of Contents.hhc"), metadata=tags("Output:project/help.chm", "Contents:Table of Contents.hhc", "ContentsGenerated:true"), warnings=tags("generated toc"), impl=WRITER_IMPL, specific=('"NoDefaultTopic" \\in collectionTags', '"DefaultTopic:index.html" \\notin metadata', '"generated toc" \\in warnings')),
+    UseCase(80, "Metadata_NoDefaultTopicWhenNoHtml", "projects with no HTML file omit the default topic and generated TOC", collection_tags=tags("NoGeneratedContents", "NoDefaultTopic"), archive=tags("readme.txt"), metadata=tags("Output:project/help.chm"), impl=WRITER_IMPL, specific=('"NoDefaultTopic" \\in collectionTags', '"DefaultTopic:index.html" \\notin metadata', '"Table of Contents.hhc" \\notin archive')),
     UseCase(81, "Metadata_FlatOptionArchivePaths", "flat mode normalizes contents and index option archive paths", collection_tags=tags("Flat", "FlatArchive"), archive=tags("toc.hhc", "index.hhk", "index.html"), metadata=tags("Output:project/help.chm", "Contents:toc.hhc", "Index:index.hhk"), impl=WRITER_IMPL, specific=('"FlatArchive" \\in collectionTags', '"Contents:toc.hhc" \\in metadata', '"Index:index.hhk" \\in metadata')),
     UseCase(82, "Chm_StringTableDeduplicates", "CHM string table reuses duplicate metadata strings", collection_tags=tags("ExplicitFiles"), archive=tags("index.html"), metadata=tags("Output:project/help.chm", "Title:Project Title", "Window:main", "StringTable:Deduplicated"), writer_tags=tags("Uncompressed", "PMGL", "InternalStreams", "StringTableDeduplicated"), impl=WRITER_IMPL, specific=('"StringTable:Deduplicated" \\in metadata', '"StringTableDeduplicated" \\in writerTags')),
-    collect_exception(83, "Error_CollectInputReadFailure", "input text read failure during collection aborts compilation", "CollectInputReadError", stderr=("input file read error", "error")),
     write_fail(84, "Error_WriterInputReadFailure", "writer input file read failure exits without creating CHM", writer_tags=("InputReadError",), stderr=("input file read error", "error")),
     UseCase(85, "Error_LockedOutputPreserved", "locked existing output fails without overwriting it", collection_tags=tags("ExplicitFiles"), archive=tags("index.html"), metadata=tags("Output:project/help.chm", "Title:Project Title", "ExistingOutput:Preserved"), writer_tags=tags("WriteFailed", "OutputCreateLocked", "ExistingOutputPreserved"), stdout=frozenset(), stderr=tags("output file locked", "error"), warnings=frozenset(), exit_code=1, chm_created=False, impl=("CliOptions.Parse", "HhpProject.Load", "ProjectCompiler.CollectFiles", "ProjectCompiler.BuildMetadata", "ChmWriter.Write", "Program.Main"), specific=('"OutputCreateLocked" \\in writerTags', '"ExistingOutputPreserved" \\in writerTags', '"ExistingOutput:Preserved" \\in metadata', "chmCreated = FALSE")),
     UseCase(86, "Error_MetadataEntryTooLarge", "oversized metadata entry fails before CHM creation", collection_tags=tags("ExplicitFiles"), archive=tags("index.html"), metadata=tags("Output:project/help.chm", "Title:Oversized"), writer_tags=tags("WriteFailed", "MetadataEntryTooLarge"), stdout=frozenset(), stderr=tags("#SYSTEM entry is too large", "error"), warnings=frozenset(), exit_code=1, chm_created=False, impl=("CliOptions.Parse", "HhpProject.Load", "ProjectCompiler.CollectFiles", "ProjectCompiler.BuildMetadata", "ChmWriter.Write", "Program.Main"), specific=('"MetadataEntryTooLarge" \\in writerTags', '"#SYSTEM entry is too large" \\in stderr', "chmCreated = FALSE")),
-    UseCase(87, "Files_GeneratedContentsEscapesHtml", "generated contents escapes HTML-sensitive topic names", collection_tags=tags("GeneratedContents", "GeneratedContentsEscaped"), archive=tags("topic-&-one.html", "Table of Contents.hhc"), metadata=tags("Output:project/help.chm", "Contents:Table of Contents.hhc", "ContentsGenerated:true", "GeneratedContentsEscaped:true"), warnings=tags("generated toc"), impl=COMPILE_IMPL, specific=('"GeneratedContentsEscaped" \\in collectionTags', '"GeneratedContentsEscaped:true" \\in metadata', '"topic-&-one.html" \\in archive')),
+    UseCase(87, "Files_OmittedContentsKeepsHtmlTopic", "omitted contents does not synthesize an escaped TOC", collection_tags=tags("NoGeneratedContents"), archive=tags("topic-&-one.html"), metadata=tags("Output:project/help.chm", "DefaultTopic:topic-&-one.html"), impl=COMPILE_IMPL, specific=('"NoGeneratedContents" \\in collectionTags', '"topic-&-one.html" \\in archive', '"Table of Contents.hhc" \\notin archive')),
     UseCase(88, "Links_BaseHrefFragmentTarget", "fragment-only links resolve against local base href", collection_tags=tags("LinkScan", "RelativeBase", "BaseFragment"), archive=tags("index.html", "topics/chapter.html"), impl=LINK_IMPL, specific=('"BaseFragment" \\in collectionTags', '"topics/chapter.html" \\in archive')),
-    UseCase(89, "Files_GeneratedContentsEscapesLocalUrls", "generated contents escapes URL-reserved Local values", collection_tags=tags("GeneratedContents", "GeneratedContentsLocalUrlEscaped"), archive=tags("C#Guide.html", "literal%23.html", "Table of Contents.hhc"), metadata=tags("Output:project/help.chm", "Contents:Table of Contents.hhc", "ContentsGenerated:true", "GeneratedContentsLocalUrlEscaped:true"), warnings=tags("generated toc"), impl=COMPILE_IMPL, specific=('"GeneratedContentsLocalUrlEscaped" \\in collectionTags', '"GeneratedContentsLocalUrlEscaped:true" \\in metadata', '"C#Guide.html" \\in archive', '"literal%23.html" \\in archive')),
+    UseCase(89, "Files_OmittedContentsNoReservedToc", "omitted contents does not synthesize a reserved-name TOC", collection_tags=tags("NoGeneratedContents"), archive=tags("C#Guide.html", "literal%23.html"), metadata=tags("Output:project/help.chm", "DefaultTopic:C#Guide.html"), impl=COMPILE_IMPL, specific=('"NoGeneratedContents" \\in collectionTags', '"C#Guide.html" \\in archive', '"literal%23.html" \\in archive', '"Table of Contents.hhc" \\notin archive')),
     UseCase(90, "Paths_ProjectEntityLiteral", "project paths keep HTML entities literal", collection_tags=tags("ExplicitFiles", "ProjectEntityLiteral"), archive=tags("docs/a&amp;b.html"), impl=COMPILE_IMPL, specific=('"ProjectEntityLiteral" \\in collectionTags', '"docs/a&amp;b.html" \\in archive')),
     UseCase(91, "Links_ExternalBaseFlatRewriteSkipped", "flat rewrite leaves references under external base href unchanged", collection_tags=tags("Flat", "FlatRewrite", "ExternalBasePreserved"), archive=tags("index.html"), impl=FLAT_IMPL, specific=('"ExternalBasePreserved" \\in collectionTags', 'archive = {"index.html"}')),
     UseCase(92, "Links_AnyAbsoluteUriSchemeExternal", "all absolute URI schemes are treated as external links", collection_tags=tags("ExternalLinksIgnored", "AllAbsoluteSchemesExternal"), archive=tags("index.html"), impl=LINK_IMPL, specific=('"AllAbsoluteSchemesExternal" \\in collectionTags', 'archive = {"index.html"}', 'warnings = {}')),
     UseCase(93, "Links_DecodedNulRejected", "decoded NUL links are rejected before path resolution", collection_tags=tags("LinkScan", "DecodedNulRejected"), archive=tags("index.html"), impl=LINK_IMPL, specific=('"DecodedNulRejected" \\in collectionTags', 'archive = {"index.html"}', 'warnings = {}')),
     UseCase(94, "Chm_InternalStreamCollision", "user archive names cannot collide with CHM internal streams", collection_tags=tags("ExplicitFiles", "ReservedInternalStreamCollision"), archive=tags("#SYSTEM"), metadata=tags("Output:project/help.chm", "Title:Project Title"), writer_tags=tags("WriteFailed", "ReservedInternalStreamCollision"), stdout=frozenset(), stderr=tags("internal stream collision", "error"), warnings=frozenset(), exit_code=1, chm_created=False, impl=("CliOptions.Parse", "HhpProject.Load", "ProjectCompiler.CollectFiles", "ProjectCompiler.BuildMetadata", "ChmWriter.Write", "Program.Main"), specific=('"ReservedInternalStreamCollision" \\in collectionTags', '"ReservedInternalStreamCollision" \\in writerTags', '"internal stream collision" \\in stderr', 'chmCreated = FALSE')),
     collect_exception(95, "Error_OutputOverwriteRejected", "output paths that overwrite project or input files are rejected", "OutputPathCollision", stderr=("output overwrite", "error")),
-    UseCase(96, "Files_CaseOnlySourceCollision", "case-only source archive collisions warn and keep the first payload", collection_tags=tags("DuplicateConflict", "CaseOnlySourceCollision"), archive=tags("topic.html"), warnings=tags("duplicate archive path"), impl=COMPILE_IMPL, specific=('"CaseOnlySourceCollision" \\in collectionTags', '"duplicate archive path" \\in warnings', '"topic.html" \\in archive')),
-    UseCase(97, "Links_FlatReservedEscapesPreserved", "flat rewrite preserves escapes for reserved filename characters", collection_tags=tags("Flat", "FlatRewrite", "ReservedEscapePreserved"), archive=tags("index.html", "C#Guide.html"), metadata=tags("Output:project/help.chm", "LinksRewrittenForFlat:true"), impl=FLAT_IMPL, specific=('"ReservedEscapePreserved" \\in collectionTags', '"C#Guide.html" \\in archive', '"LinksRewrittenForFlat:true" \\in metadata')),
+    UseCase(96, "Files_CaseOnlySourceCollision", "case-only source archive collisions are quiet and keep the active source", collection_tags=tags("DuplicateConflict", "CaseOnlySourceCollision"), archive=tags("topic.html"), impl=COMPILE_IMPL, specific=('"CaseOnlySourceCollision" \\in collectionTags', "warnings = {}", '"topic.html" \\in archive')),
+    UseCase(97, "Links_FlatReservedEscapesPreserved", "flat archives preserve payload links with reserved filename escapes", collection_tags=tags("Flat", "FlatRewrite", "ReservedEscapePreserved"), archive=tags("index.html", "C#Guide.html"), metadata=tags("Output:project/help.chm"), impl=FLAT_IMPL, specific=('"ReservedEscapePreserved" \\in collectionTags', '"C#Guide.html" \\in archive', '"LinksRewrittenForFlat:true" \\notin metadata')),
 ]
 
 
@@ -643,7 +640,7 @@ TypeOK ==
   /\\ stdout \\in SUBSET AllStdout
   /\\ stderr \\in SUBSET AllStderr
   /\\ warnings \\in SUBSET AllWarnings
-  /\\ exitCode \\in {{-1, 0, 1, 2}}
+  /\\ exitCode \\in {{-1, 0, 1, 24}}
   /\\ chmCreated \\in BOOLEAN
   /\\ visited \\in SUBSET AllVisited
 

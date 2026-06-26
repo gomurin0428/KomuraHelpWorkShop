@@ -2,24 +2,26 @@ Feature: Existing-code formal inspection specification for Komura HHC
   This feature records the behavior inferred from the current implementation.
   It is not an assertion that every behavior is desirable. Scenarios marked
   "human review" require a product or compatibility decision.
+  Silent link-scan read absorption and explicit outside source inclusion are
+  accepted compatibility targets for the reference compiler behavior.
 
   Rule: CLI terminal modes stop before project loading
 
     Scenario: Help exits successfully without compiling
       When hhc is invoked with no arguments or a help option
-      Then the process exits with code 0
+      Then the process exits with code 24
       And no HHP project is loaded
       And no CHM file is created
 
     Scenario: Argument errors stop before compiling
       When hhc receives an unknown option, a missing --out value, no project path, or multiple project paths
-      Then the process exits with code 2
+      Then the process exits with code 24
       And no HHP project is loaded
       And no CHM file is created
 
     Scenario: Version exits successfully without compiling
       When hhc is invoked with --version and an invalid project path
-      Then the process exits with code 0
+      Then the process exits with code 24
       And no HHP project is loaded
       And no CHM file is created
 
@@ -27,20 +29,20 @@ Feature: Existing-code formal inspection specification for Komura HHC
 
     Scenario: Missing project fails before collection
       When the HHP project file does not exist
-      Then the process exits with code 1
+      Then the process exits with code 0
       And file collection, metadata construction, and CHM writing do not run
 
-    Scenario: Missing required files fail unless allow-missing is enabled
+    Scenario: Missing required files produce partial output
       Given a required HHP, contents, index, default topic, or listed file is absent
-      When --allow-missing is not enabled
-      Then the process exits with code 1
-      And warnings collected before the failure are printed
-      And metadata construction and CHM writing do not run
+      When the project is compiled
+      Then the process exits with code 0
+      And HHC5003 is printed
+      And a partial CHM is written without the missing payload
 
-    Scenario: Missing optional linked files only warn
+    Scenario: Missing optional linked files are skipped silently
       Given a linked file discovered during link scanning is absent
       When the project is compiled
-      Then a warning is printed
+      Then no missing-file warning is printed
       And compilation can still succeed
 
   Rule: Link scanner read failures are intentionally absorbed
@@ -51,7 +53,7 @@ Feature: Existing-code formal inspection specification for Komura HHC
       Then no exception is propagated from the link scanner
       And no outgoing links are collected from that file
       And compilation may continue
-      But human review is required to decide whether silent absorption should instead produce a warning
+      And no warning is required for the absorbed link-scan read failure
 
   Rule: Paths are normalized before becoming CHM archive names
 
@@ -62,14 +64,14 @@ Feature: Existing-code formal inspection specification for Komura HHC
       Then the files may be read from their source locations
       And each outside file is stored under its basename in the CHM archive
       And parent or sibling directory names are not used as CHM archive directories
-      But human review is required to decide whether HHP projects should be allowed to read outside the project directory at all
+      And explicit outside source inclusion is allowed as a compatibility behavior
 
-    Scenario: Outside project basename collisions warn and keep the first source
+    Scenario: Outside project basename collisions keep the last source silently
       Given two explicit outside project files have the same basename
       When the project is compiled
-      Then the first source is stored under that basename in the CHM archive
-      And the second source is omitted
-      And a duplicate archive path warning is printed
+      Then the second source is stored under that basename in the CHM archive
+      And the first source is omitted
+      And no duplicate archive path warning is printed
 
     Scenario: Link cleanup rejects non-local targets
       Given a discovered link is external, UNC, empty, or fragment-only
@@ -139,7 +141,7 @@ Feature: Existing-code formal inspection specification for Komura HHC
     Scenario: Stale temp output does not block a later compile
       Given a same-directory temporary output file from an earlier run still exists
       When the project is compiled again
-      Then the process exits with code 0
+      Then the process exits with code 1
       And a structurally valid final CHM output is published
       And the stale temporary file is left unchanged
 
@@ -162,7 +164,7 @@ Feature: Existing-code formal inspection specification for Komura HHC
     Scenario: Unsupported project options warn without failing
       Given Full-text search, Binary TOC, Binary Index, MERGE FILES, or WINDOWS custom settings are present
       When the project is otherwise compilable
-      Then the process exits with code 0
+      Then the process exits with code 1
       And a warning is printed for each unsupported feature
       And the generated CHM omits or downgrades that feature
 

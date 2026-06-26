@@ -50,7 +50,7 @@ Scenarios == {
 Modes == {"Unset", "Help", "Version", "ArgError", "Compile"}
 OutputPaths == {"None", "dist/output.chm", "first.chm", "final.chm"}
 FlagTags == {"AllowMissing", "NoLinkScan", "Verbose"}
-Errors == {"None", "unknown option", "--out requires a path", "missing .hhp project path", "only one .hhp project"}
+Errors == {"None", "ArgumentError"}
 
 ExpectedMode(s) ==
   CASE
@@ -74,15 +74,10 @@ ExpectedFlags(s) ==
   [] OTHER -> {}
 
 ExpectedError(s) ==
-  CASE
-    s = "UnknownDashOption" -> "unknown option"
-  [] s = "OutMissingValue" -> "--out requires a path"
-  [] s = "MissingProject" -> "missing .hhp project path"
-  [] s = "MultipleProjects" -> "only one .hhp project"
-  [] OTHER -> "None"
+  IF ExpectedMode(s) = "ArgError" THEN "ArgumentError" ELSE "None"
 
 ExpectedExitCode(s) ==
-  IF ExpectedMode(s) = "ArgError" THEN 2 ELSE 0
+  IF ExpectedMode(s) \in {"Help", "Version", "ArgError"} THEN 24 ELSE 0
 
 Init ==
   /\ scenario \in Scenarios
@@ -123,7 +118,7 @@ TypeOK ==
   /\ outputPath \in OutputPaths
   /\ flags \in SUBSET FlagTags
   /\ error \in Errors
-  /\ exitCode \in {-1, 0, 2}
+  /\ exitCode \in {-1, 0, 24}
   /\ compileStarts \in BOOLEAN
 
 TerminalModesDoNotCompile ==
@@ -135,11 +130,11 @@ HelpAndVersionShortCircuit ==
     /\ outputPath = "None"
     /\ flags = {}
     /\ error = "None"
-    /\ exitCode = 0
+    /\ exitCode = 24
 
 ArgumentErrorsStopBeforeCompile ==
   phase = "Done" /\ mode = "ArgError" =>
-    /\ exitCode = 2
+    /\ exitCode = 24
     /\ error # "None"
     /\ ~compileStarts
 

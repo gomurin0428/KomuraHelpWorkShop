@@ -5,7 +5,7 @@ EXTENDS Naturals, FiniteSets
 Abstract file collection model for Komura HHC.
 
 The model checks the recursive collection contract over a small filesystem:
-explicit roots, optional links, missing files, duplicate archive paths, ignored
+explicit roots, optional links, missing files, silent duplicate replacement, replacement link scanning, ignored
 external targets, link cycles, and Flat=Yes archive naming.
 *)
 
@@ -62,7 +62,7 @@ ArchivePaths == {
 }
 
 FlatArchivePaths == {"index.html", "intro.html", "logo.png", "missing.html", "a.html", "b.html"}
-WarningTags == {"file not found", "duplicate archive path"}
+WarningTags == {"HHC5003"}
 SourceOrNone == Files \cup {"None"}
 ItemSet == {[file |-> f, required |-> r] : f \in Files, r \in BOOLEAN}
 
@@ -106,6 +106,8 @@ LinkSet(file) ==
   CASE
     file = "index" -> {"intro", "logo", "external", "fragment"}
   [] file = "intro" -> {"logo"}
+  [] file = "aIndex" -> {"intro"}
+  [] file = "bIndex" -> {"logo"}
   [] file = "cycleA" -> {"cycleB"}
   [] file = "cycleB" -> {"cycleA"}
   [] OTHER -> {}
@@ -144,7 +146,7 @@ ProcessMissing(item) ==
   /\ Cleaned(item.file) # "None"
   /\ item.file \notin exists
   /\ pending' = pending \ {item}
-  /\ warnings' = warnings \cup {"file not found"}
+  /\ warnings' = IF item.required THEN warnings \cup {"HHC5003"} ELSE warnings
   /\ missingRequired' = IF item.required THEN missingRequired \cup {item.file} ELSE missingRequired
   /\ UNCHANGED <<ConfigVars, stored, storedSource, attempted, collectionOk>>
   /\ phase' = phase
@@ -170,31 +172,21 @@ ProcessDuplicate(item) ==
   /\ item.file \in exists
   /\ LET a == ArchiveOf(item.file, flat) IN
      /\ a \in stored
-     /\ pending' = pending \ {item}
+     /\ pending' = IF storedSource[a] = item.file THEN pending \ {item} ELSE (pending \ {item}) \cup LinkItems(item.file)
      /\ attempted' = [attempted EXCEPT ![a] = @ \cup {item.file}]
-     /\ warnings' =
-          IF storedSource[a] # item.file
-          THEN warnings \cup {"duplicate archive path"}
-          ELSE warnings
-     /\ UNCHANGED <<ConfigVars, stored, storedSource, missingRequired, collectionOk>>
+     /\ storedSource' = [storedSource EXCEPT ![a] = item.file]
+     /\ warnings' = warnings
+     /\ UNCHANGED <<ConfigVars, stored, missingRequired, collectionOk>>
      /\ phase' = phase
 
 FinishOk ==
   /\ phase = "Collecting"
   /\ pending = {}
-  /\ missingRequired = {} \/ allowMissing
   /\ phase' = "Done"
   /\ collectionOk' = TRUE
   /\ UNCHANGED <<ConfigVars, pending, stored, storedSource, attempted, missingRequired, warnings>>
 
-FinishFail ==
-  /\ phase = "Collecting"
-  /\ pending = {}
-  /\ missingRequired # {}
-  /\ ~allowMissing
-  /\ phase' = "Done"
-  /\ collectionOk' = FALSE
-  /\ UNCHANGED <<ConfigVars, pending, stored, storedSource, attempted, missingRequired, warnings>>
+FinishFail == FALSE
 
 StayDone ==
   /\ phase = "Done"
@@ -207,7 +199,6 @@ Next ==
     \/ ProcessNew(item)
     \/ ProcessDuplicate(item))
   \/ FinishOk
-  \/ FinishFail
   \/ StayDone
 
 Spec == Init /\ [][Next]_vars /\ WF_vars(Next)
@@ -234,15 +225,25 @@ StoredSourceMatchesStored ==
 IgnoredTargetsAreNeverStored ==
   \A a \in stored: storedSource[a] \notin IgnoredFiles
 
-MissingRequiredBlocksCollection ==
-  phase = "Done" /\ missingRequired # {} /\ ~allowMissing => collectionOk = FALSE
+MissingRequiredDoesNotBlockCollection ==
+  phase = "Done" /\ missingRequired # {} => collectionOk = TRUE
 
 AllowMissingKeepsCollectionPossible ==
   phase = "Done" /\ missingRequired # {} /\ allowMissing => collectionOk = TRUE
 
-DuplicateConflictWarned ==
+DuplicateConflictIsSilentAndReplaced ==
   \A a \in ArchivePaths:
-    Cardinality(attempted[a]) > 1 => "duplicate archive path" \in warnings
+    Cardinality(attempted[a]) > 1 =>
+      /\ warnings = {}
+      /\ storedSource[a] \in attempted[a]
+
+DuplicateReplacementLinksAreScanned ==
+  phase = "Done" /\ scanLinks /\ flat /\ roots = {"aIndex", "bIndex"} =>
+    LET winner == storedSource["index.html"] IN
+      CASE
+        winner = "aIndex" -> "intro.html" \in stored
+      [] winner = "bIndex" -> "logo.png" \in stored
+      [] OTHER -> FALSE
 
 FlatStorageConsistent ==
   flat => stored \subseteq FlatArchivePaths

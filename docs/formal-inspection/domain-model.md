@@ -45,7 +45,7 @@ This model is implementation-informed but intentionally not an implementation co
 | `TypeOK` | Keeps all modeled variables inside finite domains. | all modeled IDs |
 | `StageDiscipline` | Metadata/package/output stages cannot happen out of order. | S-001 |
 | `FinalOutcomeMatchesCurrentCode` | Terminal exit/error/warning/output/archive namespace matches current-code spec. | S-002, S-003 |
-| `NoSuccessfulChmOnError` | Error exits cannot report a valid CHM. | U-003, U-005 |
+| `FatalErrorDoesNotCreateChm` | Fatal error scenarios cannot report a valid CHM. | U-003, U-005 |
 | `SuccessRequiresPackageAndOutputOpen` | A valid CHM requires package construction and output publication. | N-002, N-005 |
 | `EarlyFailuresStopBeforeMetadata` | CLI/project/required-file failures stop early. | U-001..U-003 |
 | `OutputCreateFailurePreservesExistingOutput` | Locked/unwritable final target preserves existing output. | E-006 |
@@ -100,7 +100,7 @@ Abstracted away from TLA+:
 - Exact codepage byte sequences and Unicode normalization.
 - Cross-process race timing and OS-level file replacement semantics.
 - Power-loss crash consistency and fsync behavior.
-- Security policy for trusting HHP files.
+- Sandboxing policy for untrusted HHP files; compatibility mode treats HHP files as trusted local project manifests.
 
 Supplement plan for abstracted areas:
 
@@ -112,4 +112,4 @@ Supplement plan for abstracted areas:
 | Encoding | Property tests over BOMs, invalid UTF-8, declared LCIDs, and fallback encodings. |
 | Cross-process races | Bounded two-process same-output stress is added; broader platform/high-volume stress or explicit locking decision remains recommended. |
 | Crash consistency | Controlled process-death-after-temp test is added; broader process-kill windows, final replace interruption, fsync/power-loss, and stale temp cleanup after process death remain recommended. |
-| Trust/security policy | Threat model decision: block outside source files, warn, or document trusted-project behavior. |
+| Trust/security policy | Compatibility decision accepted: explicit outside source files are allowed for trusted local HHP projects; document that this compiler is not a sandbox for untrusted manifests. |

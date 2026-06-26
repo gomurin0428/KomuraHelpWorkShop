@@ -50,7 +50,7 @@ Events:
 - Collect required project files and optional linked files.
 - Normalize archive paths and outside-project file names.
 - Absorb link scanner read failures.
-- Generate table of contents when no contents file is configured.
+- Omit the contents file when no contents file is configured, matching the reference compiler behavior.
 - Warn for unsupported HHW options.
 - Build CHM metadata and package.
 - Stage CHM bytes in a temporary file and publish to the final output path.
@@ -62,8 +62,8 @@ External input/output:
 
 Failures and non-features:
 
-- Argument errors return exit code 2 before project loading.
-- Compile exceptions return exit code 1.
+- Help, version, and argument errors return exit code 24 before project loading.
+- Fatal compile exceptions return exit code 1; missing projects and missing required files follow the HHC-compatible exit and partial-output contracts.
 - Link scanner read exceptions are swallowed and treated as no outgoing links.
 - Other I/O exceptions become compile errors.
 - No retry, cancellation, timeout, resume, or application-level output lock protocol is implemented.
@@ -73,12 +73,17 @@ Failures and non-features:
 
 | ID | Decision needed | Current behavior |
 | -- | -- | -- |
-| HR-001 | Should link scanner read failures be silent? | They are absorbed without warnings. |
 | HR-002 | Is process-level output atomicity enough? | Existing final output is preserved on staging/publish failure, but fsync/crash durability is not guaranteed. |
-| HR-003 | Should project paths outside the HHP directory be allowed? | They are still read when explicitly listed, but stored by basename only. |
 | HR-004 | Should unsupported HHW features remain warning-only? | They warn and compilation can still succeed. |
 | HR-005 | Is absence of retry/cancellation/timeout acceptable? | Current implementation has no such protocol. |
 | HR-006 | Should concurrent compiles to one output be serialized? | Current implementation relies on filesystem move/replace behavior only. |
+
+## Compatibility Decisions Accepted
+
+| ID | Decision | Locked behavior |
+| -- | -- | -- |
+| CD-001 | Match the reference compiler for link-scan read failures. | Link scanner read exceptions are absorbed without warnings and treated as no outgoing links. |
+| CD-002 | Match the reference compiler for explicit outside source files. | Project-declared outside files are read when explicitly listed, but stored in the CHM under basename-only archive paths. |
 
 ## TLA+ Model
 
@@ -101,7 +106,7 @@ Key invariants and temporal properties:
 
 - `StageDiscipline`
 - `FinalOutcomeMatchesCurrentCode`
-- `NoSuccessfulChmOnError`
+- `FatalErrorDoesNotCreateChm`
 - `OutputCreateFailurePreservesExistingOutput`
 - `OutsideProjectPathUsesBasenameArchiveName`
 - `ArchiveNamespaceNeverEscapes`
@@ -130,14 +135,14 @@ Existing broader TLA suite:
 
 - Command: `python tools/run_tla_models.py`
 - Result: PASS
-- Models: 97
+- Models: 107
 - Suites: implementation, core, use cases
 
 Coverage audit:
 
 - Command: `python tools/audit_tla_coverage.py`
 - Result: PASS
-- Logs checked: 98
+- Logs checked: 108
 - Unexpected zero-hit or missing-coverage issues: 0
 
 ## Mutation Oracle
@@ -180,7 +185,7 @@ Command:
 
 Result:
 
-- 41 integration/direct tests passed.
+- 59 integration/direct tests passed.
 
 Added or strengthened tests:
 
@@ -193,12 +198,12 @@ Added or strengthened tests:
 - `Utf16ProjectCompiles`
 - `NoLinkScanSkipsOptionalLinkedMissingFiles`
 - `UnsupportedHhwFeaturesWarnButSucceed`
-- `HelpExitsZeroBeforeProjectLoading`
-- `VersionExitsZeroBeforeProjectLoading`
-- `MissingOutValueExitsTwo`
+- `HelpExitsUsageBeforeProjectLoading`
+- `VersionPrintsUsageBeforeProjectLoading`
+- `MissingOutValueExitsUsage`
 - `ArchivePathNormalizationPropertySeedsNeverEscape`
 - `GeneratedArchivePathFuzzSeedsNeverEscape`
-- `OutsideProjectBasenameCollisionsWarnAndKeepFirst`
+- `OutsideProjectBasenameCollisionsKeepLast`
 - `LinkScannerExtractionSeedsCoverSyntax`
 - `FlatLinkRewriteSeedPropertiesAreStable`
 - `GeneratedFlatLinkRewriteFuzzSeedsAreIdempotent`
@@ -216,11 +221,11 @@ Added or strengthened tests:
 
 Test wiring red/green check:
 
-- Correct implementation: all 41 tests passed.
-- Current rerun: `dotnet run --project tests\hhc.IntegrationTests\hhc.IntegrationTests.csproj -p:UseAppHost=false` passed all 41 tests. MSBuild emitted stale apphost/cache delete warnings, but the executable tests ran against the rebuilt DLL path.
+- Correct implementation: all 59 tests passed.
+- Current rerun: `dotnet run --project tests\hhc.IntegrationTests\hhc.IntegrationTests.csproj -p:UseAppHost=false` passed all 59 tests. MSBuild emitted stale apphost/cache delete warnings, but the executable tests ran against the rebuilt DLL path.
 - Current intentional source mutation: temporarily changed `ProjectCompiler.MakeArchiveRelative` so outside project paths reused `originalPath` instead of `Path.GetFileName(sourcePath)`.
-- Expected red result: `outside project paths stay inside archive namespace` failed because the sibling temp directory name appeared in CHM bytes, and `outside project basename collisions warn and keep first` failed because basename collision detection no longer fired.
-- Restored implementation: the same 41 tests passed again.
+- Expected red result: `outside project paths stay inside archive namespace` failed because the sibling temp directory name appeared in CHM bytes, and `outside project basename collisions keep last` failed because basename convergence no longer preserved the expected active payload.
+- Restored implementation: the same 59 tests passed again.
 - Mutated implementation: temporarily changed `ProjectCompiler.MakeArchiveRelative` so outside project paths were not basename-only.
 - Expected red result: `outside project paths stay inside archive namespace` failed by detecting the sibling temp directory name inside CHM bytes.
 - Mutated implementation: temporarily disabled the aggregate PMGI size guard in `ChmWriter.BuildSinglePmgiChunk`.
@@ -231,7 +236,7 @@ Test wiring red/green check:
 - Expected red result: `JapaneseLanguageStoresCp932Metadata`, `HhpParserEncodingAndLineEndingSeedsAreStable`, and `EncodingDetectorFallbackSeedsAreStable` failed.
 - Mutated implementation: temporarily disabled CHM content-offset advancement in `ChmWriter.AssignContentOffsets`.
 - Expected red result: `ChmStructuralHeaderInvariantsHold` and `ChmDirectoryEntriesResolveExactUserContent` failed by decoding wrong payload bytes.
-- Restored implementation: all 41 tests passed again.
+- Restored implementation: all 59 tests passed again.
 
 ## Dropped To Gherkin / Tests / Seeds
 
@@ -249,7 +254,7 @@ Can be called verified within the stated abstraction:
 - Modeled CLI/project/file/output failure stage ordering.
 - Process-level final-output atomicity for temp-write and publish exceptions.
 - CHM ITSF/section0/ITSP/PMGL/PMGI structural invariants and PMGL directory-entry exact payload resolution for generated small and indexed outputs.
-- Outside project files do not escape the CHM archive namespace; they use basename-only archive names and duplicate basenames warn/keep first.
+- Outside project files do not escape the CHM archive namespace; they use basename-only archive names and duplicate basenames are silent last-wins collisions.
 - Link target cleanup, extraction, and flat rewrite behavior for selected and bounded generated external/UNC/fragment/malformed-percent/HTML/CSS/HHC boundary seeds.
 - Link scanner read failures are executable-test covered as silent absorption.
 - Deterministic HHP parsing for duplicate, blank, quoted, unbalanced quoted, CR-only line ending, unknown section, and truthy option seeds.
@@ -271,5 +276,5 @@ Cannot yet be called verified:
 - Full HTML/CSS parsing grammar beyond selected and bounded generated extraction/cleanup/rewrite seed tests.
 - Exhaustive encoding behavior across all invalid byte/codepage combinations beyond bounded generated seeds.
 - Independent CHM-reader compatibility beyond structural header/chunk and PMGL exact-payload invariants.
-- Security policy for untrusted HHP projects and outside source file inclusion.
+- Sandboxing or blocking behavior for untrusted HHP projects; compatibility mode treats HHP files as trusted local project manifests and allows explicit outside source inclusion.
 - Cancellation, timeout, and retry semantics, because the implementation has no such protocol.

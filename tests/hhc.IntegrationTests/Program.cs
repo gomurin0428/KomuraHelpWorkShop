@@ -21,16 +21,17 @@ var tests = new (string Name, Action Body)[]
     ("CHM directory entries resolve exact user content", ChmDirectoryEntriesResolveExactUserContent),
     ("Japanese Language metadata is stored with CP932 bytes", JapaneseLanguageStoresCp932Metadata),
     ("invalid Language falls back before metadata storage", InvalidLanguageFallsBackBeforeMetadataStorage),
-    ("help exits 0 before project loading", HelpExitsZeroBeforeProjectLoading),
-    ("version exits 0 before project loading", VersionExitsZeroBeforeProjectLoading),
-    ("unknown CLI option exits 2 without compiling", UnknownCliOptionExitsTwo),
-    ("missing out value exits 2 without compiling", MissingOutValueExitsTwo),
-    ("missing HHP project exits 1 without compiling", MissingProjectExitsOne),
-    ("missing required file fails by default", MissingRequiredFileFailsByDefault),
+    ("help exits 24 before project loading", HelpExitsUsageBeforeProjectLoading),
+    ("version prints usage and exits 24 before project loading", VersionPrintsUsageBeforeProjectLoading),
+    ("unknown CLI option exits 24 without compiling", UnknownCliOptionExitsUsage),
+    ("missing out value exits 24 without compiling", MissingOutValueExitsUsage),
+    ("missing HHP project exits 0 without compiling", MissingProjectExitsZero),
+    ("missing required file emits partial CHM", MissingRequiredFileEmitsPartialChm),
     ("allow-missing downgrades required absence to warning", AllowMissingDowngradesRequiredAbsence),
-    ("Flat duplicate archive conflict keeps first file and warns", FlatDuplicateConflictWarnsAndKeepsFirst),
+    ("Flat duplicate archive conflict keeps last file", FlatDuplicateConflictKeepsLast),
+    ("Flat replacement prunes losing source links", FlatReplacementPrunesLosingSourceLinks),
     ("outside project paths stay inside archive namespace", OutsideProjectPathsStayInsideArchiveNamespace),
-    ("outside project basename collisions warn and keep first", OutsideProjectBasenameCollisionsWarnAndKeepFirst),
+    ("outside project basename collisions keep last", OutsideProjectBasenameCollisionsKeepLast),
     ("archive path normalization property seeds never escape", ArchivePathNormalizationPropertySeedsNeverEscape),
     ("generated archive path fuzz seeds never escape", GeneratedArchivePathFuzzSeedsNeverEscape),
     ("dot project path entries are ignored", DotProjectPathEntriesAreIgnored),
@@ -43,11 +44,11 @@ var tests = new (string Name, Action Body)[]
     ("decoded NUL links do not abort compile", DecodedNulLinksDoNotAbortCompile),
     ("link scanner extraction seeds cover syntax", LinkScannerExtractionSeedsCoverSyntax),
     ("flat link rewrite seed properties are stable", FlatLinkRewriteSeedPropertiesAreStable),
-    ("flat base href is removed during rewrite", FlatBaseHrefIsRemovedDuringRewrite),
+    ("flat base href scanner flattens archive without rewriting payload", FlatBaseHrefScannerFlattensArchiveWithoutRewritingPayload),
     ("flat rewrite preserves external base references", FlatRewritePreservesExternalBaseReferences),
     ("flat link rewrite decodes encoded separators", FlatLinkRewriteDecodesEncodedSeparators),
     ("flat link rewrite preserves reserved escapes", FlatLinkRewritePreservesReservedEscapes),
-    ("generated TOC escapes reserved Local URLs", GeneratedTocEscapesReservedLocalUrls),
+    ("omitted Contents file has no generated reserved TOC", OmittedContentsFileHasNoGeneratedReservedToc),
     ("generated flat link rewrite fuzz seeds are idempotent", GeneratedFlatLinkRewriteFuzzSeedsAreIdempotent),
     ("link scanner read failure is absorbed", LinkScannerReadFailureIsAbsorbed),
     ("HHP parser boundary options are stable", HhpParserBoundaryOptionsAreStable),
@@ -58,10 +59,11 @@ var tests = new (string Name, Action Body)[]
     ("flat UTF-16 rewrite preserves BOM", FlatUtf16RewritePreservesBom),
     ("no-link-scan skips optional linked missing files", NoLinkScanSkipsOptionalLinkedMissingFiles),
     ("unsupported HHW features warn but succeed", UnsupportedHhwFeaturesWarnButSucceed),
-    ("generated TOC avoids user archive path collision", GeneratedTocAvoidsUserArchivePathCollision),
+    ("omitted Contents file does not generate TOC", OmittedContentsFileDoesNotGenerateToc),
     ("internal stream archive path collision exits 1", InternalStreamArchivePathCollisionExitsOne),
     ("output path cannot overwrite project or input files", OutputPathCannotOverwriteProjectOrInputFiles),
-    ("case-only archive source collision warns", CaseOnlyArchiveSourceCollisionWarns),
+    ("output path cannot overwrite replaced flat collision source", OutputPathCannotOverwriteReplacedFlatCollisionSource),
+    ("case-only archive source collision is quiet", CaseOnlyArchiveSourceCollisionIsQuiet),
     ("unwritable output target exits 1 without CHM creation", UnwritableOutputTargetExitsOne),
     ("locked input file read exits 1 before creating CHM", LockedInputFileReadExitsOne),
     ("locked output file create exits 1 without overwriting existing file", LockedOutputFileCreateExitsOne),
@@ -113,7 +115,7 @@ void SmallProjectHasHeaderInternalStreamsAndPmglOnly()
     WriteStandardProject(project, "help.chm");
 
     var result = RunHhc(project.File("help.hhp").FullName);
-    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertEqual(1, result.ExitCode, result.ToString());
 
     var chmPath = project.File("help.chm");
     AssertFileExists(chmPath);
@@ -159,7 +161,7 @@ void LargeProjectUsesPmgi()
     project.WriteText("help.hhp", hhp.ToString());
 
     var result = RunHhc(project.File("help.hhp").FullName);
-    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertEqual(1, result.ExitCode, result.ToString());
 
     var bytes = File.ReadAllBytes(project.File("large.chm").FullName);
     AssertAsciiAt(bytes, 0, "ITSF");
@@ -193,7 +195,7 @@ void ChmStructuralHeaderInvariantsHold()
     project.WriteText("help.hhp", hhp.ToString());
 
     var result = RunHhc(project.File("help.hhp").FullName);
-    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertEqual(1, result.ExitCode, result.ToString());
 
     var bytes = File.ReadAllBytes(project.File("structure.chm").FullName);
     AssertChmStructure(bytes, expectPmgi: true);
@@ -231,7 +233,7 @@ void ChmDirectoryEntriesResolveExactUserContent()
             string.Empty));
 
     var result = RunHhc(project.File("help.hhp").FullName);
-    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertEqual(1, result.ExitCode, result.ToString());
 
     var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("exact-content.chm").FullName));
     AssertBytesEqual(index, entries["/index.html"], "Decoded /index.html payload mismatch.");
@@ -262,72 +264,77 @@ void JapaneseLanguageStoresCp932Metadata()
         cp932);
 
     var result = RunHhc(project.File("help.hhp").FullName);
-    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertEqual(1, result.ExitCode, result.ToString());
 
     var bytes = File.ReadAllBytes(project.File("jp.chm").FullName);
     AssertAsciiAt(bytes, 0, "ITSF");
     AssertContainsBytes(bytes, cp932.GetBytes(title), "CP932 title bytes");
 }
 
-void HelpExitsZeroBeforeProjectLoading()
+void HelpExitsUsageBeforeProjectLoading()
 {
     using var project = TempProject.Create();
     WriteStandardProject(project, "help.chm");
 
     var result = RunHhc("--help", project.File("missing.hhp").FullName);
 
-    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertEqual(24, result.ExitCode, result.ToString());
     AssertContainsText(result.Stdout, "Usage:");
     AssertFileDoesNotExist(project.File("help.chm"));
 }
 
-void VersionExitsZeroBeforeProjectLoading()
+void VersionPrintsUsageBeforeProjectLoading()
 {
     using var project = TempProject.Create();
     WriteStandardProject(project, "help.chm");
 
     var result = RunHhc("--version", project.File("missing.hhp").FullName);
 
-    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertEqual(24, result.ExitCode, result.ToString());
     AssertContainsText(result.Stdout, VersionInfo.Version);
+    AssertContainsText(result.Stdout, "Usage:");
+    AssertContainsText(result.Stdout, "Options:");
     AssertFileDoesNotExist(project.File("help.chm"));
 }
 
-void UnknownCliOptionExitsTwo()
+void UnknownCliOptionExitsUsage()
 {
     using var project = TempProject.Create();
     WriteStandardProject(project, "help.chm");
 
     var result = RunHhc("--unknown", project.File("help.hhp").FullName);
 
-    AssertEqual(2, result.ExitCode, result.ToString());
-    AssertContainsText(result.Stderr, "unknown option");
+    AssertEqual(24, result.ExitCode, result.ToString());
+    AssertContainsText(result.Stdout, "Usage:");
+    AssertNotContainsText(result.Stderr, "unknown option");
     AssertFileDoesNotExist(project.File("help.chm"));
 }
 
-void MissingOutValueExitsTwo()
+void MissingOutValueExitsUsage()
 {
     using var project = TempProject.Create();
     WriteStandardProject(project, "help.chm");
 
     var result = RunHhc("--out");
 
-    AssertEqual(2, result.ExitCode, result.ToString());
-    AssertContainsText(result.Stderr, "--out requires a path");
+    AssertEqual(24, result.ExitCode, result.ToString());
+    AssertContainsText(result.Stdout, "Usage:");
+    AssertNotContainsText(result.Stderr, "--out requires a path");
     AssertFileDoesNotExist(project.File("help.chm"));
 }
 
-void MissingProjectExitsOne()
+void MissingProjectExitsZero()
 {
     using var project = TempProject.Create();
     var result = RunHhc(project.File("missing.hhp").FullName);
 
-    AssertEqual(1, result.ExitCode, result.ToString());
-    AssertContainsText(result.Stderr, "Project file not found");
+    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertContainsText(result.Stderr, "Unable to open");
+    AssertNotContainsText(result.Stderr, "Project file not found");
     AssertFileDoesNotExist(project.File("missing.chm"));
 }
 
-void MissingRequiredFileFailsByDefault()
+void MissingRequiredFileEmitsPartialChm()
 {
     using var project = TempProject.Create();
     project.WriteText(
@@ -342,10 +349,12 @@ void MissingRequiredFileFailsByDefault()
 
     var result = RunHhc(project.File("help.hhp").FullName);
 
-    AssertEqual(1, result.ExitCode, result.ToString());
-    AssertContainsText(result.Stderr, "file not found");
-    AssertContainsText(result.Stderr, "Missing required files");
-    AssertFileDoesNotExist(project.File("missing-required.chm"));
+    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertContainsText(result.Stderr, "HHC5003");
+    AssertContainsText(result.Stderr, "missing.html");
+    AssertFileExists(project.File("missing-required.chm"));
+    var bytes = File.ReadAllBytes(project.File("missing-required.chm").FullName);
+    AssertNotContainsAscii(bytes, "/missing.html");
 }
 
 void AllowMissingDowngradesRequiredAbsence()
@@ -366,13 +375,13 @@ void AllowMissingDowngradesRequiredAbsence()
     var result = RunHhc(project.File("help.hhp").FullName, "--allow-missing");
 
     AssertEqual(0, result.ExitCode, result.ToString());
-    AssertContainsText(result.Stderr, "file not found");
+    AssertContainsText(result.Stderr, "HHC5003");
     var bytes = File.ReadAllBytes(project.File("allow-missing.chm").FullName);
     AssertContainsAscii(bytes, "/index.html");
     AssertNotContainsAscii(bytes, "/missing.html");
 }
 
-void FlatDuplicateConflictWarnsAndKeepsFirst()
+void FlatDuplicateConflictKeepsLast()
 {
     using var project = TempProject.Create();
     project.WriteText("a/index.html", "<html><body>FIRST</body></html>");
@@ -391,12 +400,40 @@ void FlatDuplicateConflictWarnsAndKeepsFirst()
 
     var result = RunHhc(project.File("help.hhp").FullName);
 
-    AssertEqual(0, result.ExitCode, result.ToString());
-    AssertContainsText(result.Stderr, "duplicate archive path");
+    AssertEqual(1, result.ExitCode, result.ToString());
+    AssertNotContainsText(result.Stderr, "duplicate archive path");
     var bytes = File.ReadAllBytes(project.File("flat-duplicate.chm").FullName);
     AssertContainsAscii(bytes, "/index.html");
-    AssertContainsAscii(bytes, "FIRST");
-    AssertNotContainsAscii(bytes, "SECOND");
+    AssertContainsAscii(bytes, "SECOND");
+    AssertNotContainsAscii(bytes, "FIRST");
+}
+
+void FlatReplacementPrunesLosingSourceLinks()
+{
+    using var project = TempProject.Create();
+    project.WriteText("a/page.html", "<html><body>LOSING<img src=\"old-only.png\"><a href=\"../b/page.html\">replacement</a></body></html>");
+    project.WriteText("a/old-only.png", "OLD ONLY");
+    project.WriteText("b/page.html", "<html><body>WINNING<img src=\"new-only.png\"></body></html>");
+    project.WriteText("b/new-only.png", "NEW ONLY");
+    project.WriteText(
+        "help.hhp",
+        string.Join(
+            "\r\n",
+            "[OPTIONS]",
+            "Compiled file=flat-replacement.chm",
+            "Flat=Yes",
+            "[FILES]",
+            "a/page.html",
+            string.Empty));
+
+    var result = RunHhc(project.File("help.hhp").FullName);
+
+    AssertEqual(1, result.ExitCode, result.ToString());
+    var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("flat-replacement.chm").FullName));
+    AssertEqual(true, entries.ContainsKey("/page.html"), "Replacing flat page should remain under the collided archive name.");
+    AssertContainsBytes(entries["/page.html"], Encoding.UTF8.GetBytes("WINNING"), "winning replacement page");
+    AssertEqual(true, entries.ContainsKey("/new-only.png"), "Replacement page links should be collected.");
+    AssertEqual(false, entries.ContainsKey("/old-only.png"), "Links reachable only from the replaced page should be pruned.");
 }
 
 void OutsideProjectPathsStayInsideArchiveNamespace()
@@ -426,7 +463,7 @@ void OutsideProjectPathsStayInsideArchiveNamespace()
 
         var result = RunHhc(project.File("help.hhp").FullName);
 
-        AssertEqual(0, result.ExitCode, result.ToString());
+        AssertEqual(1, result.ExitCode, result.ToString());
         var bytes = System.IO.File.ReadAllBytes(project.File("outside-paths.chm").FullName);
         AssertContainsAscii(bytes, "/outside-relative.html");
         AssertContainsAscii(bytes, "/outside-absolute.html");
@@ -441,7 +478,7 @@ void OutsideProjectPathsStayInsideArchiveNamespace()
     }
 }
 
-void OutsideProjectBasenameCollisionsWarnAndKeepFirst()
+void OutsideProjectBasenameCollisionsKeepLast()
 {
     using var project = TempProject.Create();
     var outsideOne = Directory.CreateDirectory(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "hhc-outside-one-" + Guid.NewGuid().ToString("N")));
@@ -467,12 +504,12 @@ void OutsideProjectBasenameCollisionsWarnAndKeepFirst()
 
         var result = RunHhc(project.File("help.hhp").FullName);
 
-        AssertEqual(0, result.ExitCode, result.ToString());
-        AssertContainsText(result.Stderr, "duplicate archive path");
+        AssertEqual(1, result.ExitCode, result.ToString());
+        AssertNotContainsText(result.Stderr, "duplicate archive path");
         var bytes = System.IO.File.ReadAllBytes(project.File("outside-collision.chm").FullName);
         AssertContainsAscii(bytes, "/shared.html");
-        AssertContainsAscii(bytes, "FIRST OUTSIDE");
-        AssertNotContainsAscii(bytes, "SECOND OUTSIDE");
+        AssertContainsAscii(bytes, "SECOND OUTSIDE");
+        AssertNotContainsAscii(bytes, "FIRST OUTSIDE");
         AssertNotContainsAscii(bytes, outsideOne.Name);
         AssertNotContainsAscii(bytes, outsideTwo.Name);
     }
@@ -820,7 +857,7 @@ void Utf16ProjectCompiles()
 
     var result = RunHhc(project.File("help.hhp").FullName);
 
-    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertEqual(1, result.ExitCode, result.ToString());
     var bytes = System.IO.File.ReadAllBytes(project.File("utf16.chm").FullName);
     AssertContainsAscii(bytes, "/index.html");
     AssertContainsAscii(bytes, "UTF16 Title");
@@ -842,7 +879,7 @@ void NoLinkScanSkipsOptionalLinkedMissingFiles()
 
     var result = RunHhc(project.File("help.hhp").FullName, "--no-link-scan");
 
-    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertEqual(1, result.ExitCode, result.ToString());
     AssertNotContainsText(result.Stderr, "missing-linked.html");
     var bytes = System.IO.File.ReadAllBytes(project.File("no-link-scan.chm").FullName);
     AssertNotContainsAscii(bytes, "/missing-linked.html");
@@ -875,7 +912,7 @@ void UnsupportedHhwFeaturesWarnButSucceed()
 
     var result = RunHhc(project.File("help.hhp").FullName);
 
-    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertEqual(1, result.ExitCode, result.ToString());
     AssertContainsText(result.Stderr, "Full-text search index generation is not implemented");
     AssertContainsText(result.Stderr, "Binary TOC is not implemented");
     AssertContainsText(result.Stderr, "Binary Index is not implemented");
@@ -956,7 +993,7 @@ void StaleTempOutputDoesNotBlockNextCompile()
 
     var result = RunHhc(project.File("help.hhp").FullName);
 
-    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertEqual(1, result.ExitCode, result.ToString());
     AssertFileExists(project.File("stale-temp.chm"));
     AssertFileExists(staleTemp);
     AssertChmStructure(File.ReadAllBytes(project.File("stale-temp.chm").FullName), expectPmgi: false);
@@ -1074,7 +1111,7 @@ void CrossProcessSameOutputCompilesLeaveValidFinalOutput()
     var resultA = taskA.Result;
     var resultB = taskB.Result;
 
-    if (resultA.ExitCode != 0 && resultB.ExitCode != 0)
+    if (resultA.ExitCode != 1 && resultB.ExitCode != 1)
     {
         throw new InvalidOperationException($"Both cross-process compiles failed.\nA: {resultA}\nB: {resultB}");
     }
@@ -1243,7 +1280,7 @@ void InvalidLanguageFallsBackBeforeMetadataStorage()
 
     var result = RunHhc(project.File("help.hhp").FullName);
 
-    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertEqual(1, result.ExitCode, result.ToString());
     var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("invalid-language.chm").FullName));
     AssertEqual(CultureInfo.CurrentCulture.LCID, ReadSystemLcid(entries["/#SYSTEM"]), "Invalid LCID should fall back before #SYSTEM metadata is written.");
 }
@@ -1269,7 +1306,7 @@ void ProjectFilePercentEscapesRemainLiteral()
 
     var result = RunHhc(project.File("help.hhp").FullName);
 
-    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertEqual(1, result.ExitCode, result.ToString());
     var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("percent-literal.chm").FullName));
     AssertEqual(true, entries.ContainsKey("/assets/a%20b.html"), "Literal percent path should be embedded under its exact archive name.");
     AssertContainsBytes(entries["/assets/a%20b.html"], Encoding.UTF8.GetBytes("PERCENT LITERAL"), "literal percent file payload");
@@ -1296,7 +1333,7 @@ void ProjectPathEntitiesRemainLiteral()
 
     var result = RunHhc(project.File("help.hhp").FullName);
 
-    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertEqual(1, result.ExitCode, result.ToString());
     AssertNotContainsText(result.Stderr, "file not found");
     var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("entity-literal.chm").FullName));
     AssertEqual(true, entries.ContainsKey("/docs/a&amp;b.html"), "Literal entity path should be embedded under its exact archive name.");
@@ -1325,7 +1362,7 @@ void HtmlBaseHrefResolvesScannedLinks()
 
     var result = RunHhc(project.File("help.hhp").FullName);
 
-    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertEqual(1, result.ExitCode, result.ToString());
     var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("base-href.chm").FullName));
     AssertEqual(true, entries.ContainsKey("/assets/logo.png"), "Link scanner should resolve relative href/src values through local base href.");
 }
@@ -1356,7 +1393,7 @@ void HtmlBaseHrefResolvesFragmentOnlyLinks()
 
     var result = RunHhc(project.File("help.hhp").FullName);
 
-    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertEqual(1, result.ExitCode, result.ToString());
     var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("base-fragment.chm").FullName));
     AssertEqual(true, entries.ContainsKey("/topics/chapter.html"), "Base-resolved fragment target should be embedded.");
 }
@@ -1388,7 +1425,7 @@ void AbsoluteUriSchemesAreExternalLinks()
 
     var result = RunHhc(project.File("help.hhp").FullName);
 
-    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertEqual(1, result.ExitCode, result.ToString());
     AssertNotContainsText(result.Stderr, "urn:topic:usage");
     AssertNotContainsText(result.Stderr, "smb://server/share/a.css");
     var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("absolute-schemes.chm").FullName));
@@ -1413,7 +1450,7 @@ void DecodedNulLinksDoNotAbortCompile()
 
     var result = RunHhc(project.File("help.hhp").FullName);
 
-    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertEqual(1, result.ExitCode, result.ToString());
     AssertNotContainsText(result.Stderr, "Null");
     AssertNotContainsText(result.Stderr, "illegal characters");
     var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("nul-link.chm").FullName));
@@ -1452,15 +1489,15 @@ void FlatUtf16RewritePreservesBom()
 
     var result = RunHhc(project.File("help.hhp").FullName);
 
-    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertEqual(1, result.ExitCode, result.ToString());
     var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("utf16-flat.chm").FullName));
     var index = entries["/index.html"];
     AssertEqual(0xFF, index[0], "UTF-16 LE BOM first byte should be preserved.");
     AssertEqual(0xFE, index[1], "UTF-16 LE BOM second byte should be preserved.");
-    AssertContainsText(Encoding.Unicode.GetString(index), "href=\"usage.html\"");
+    AssertContainsText(Encoding.Unicode.GetString(index), "href=\"topics/usage.html\"");
 }
 
-void GeneratedTocAvoidsUserArchivePathCollision()
+void OmittedContentsFileDoesNotGenerateToc()
 {
     using var project = TempProject.Create();
     project.WriteText("index.html", "<html><body>Topic</body></html>");
@@ -1478,12 +1515,15 @@ void GeneratedTocAvoidsUserArchivePathCollision()
 
     var result = RunHhc(project.File("help.hhp").FullName);
 
-    AssertEqual(0, result.ExitCode, result.ToString());
-    AssertContainsText(result.Stderr, "Generated contents file uses 'Table of Contents 2.hhc'");
+    AssertEqual(1, result.ExitCode, result.ToString());
+    AssertNotContainsText(result.Stderr, "Generated contents");
     var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("toc-collision.chm").FullName));
     AssertContainsBytes(entries["/Table of Contents.hhc"], Encoding.UTF8.GetBytes("USER TOC PAYLOAD"), "user TOC payload");
-    AssertEqual(true, entries.ContainsKey("/Table of Contents 2.hhc"), "Generated TOC should use a unique archive path when the default name is occupied.");
-    AssertContainsBytes(entries["/#SYSTEM"], Encoding.UTF8.GetBytes("Table of Contents 2.hhc"), "#SYSTEM generated TOC path");
+    AssertEqual(false, entries.ContainsKey("/Table of Contents 2.hhc"), "Contents omission should not generate a synthetic TOC.");
+    if (ContainsBytes(entries["/#SYSTEM"], Encoding.UTF8.GetBytes("Table of Contents 2.hhc")))
+    {
+        throw new InvalidOperationException("#SYSTEM should not point at a generated TOC path.");
+    }
 }
 
 void InternalStreamArchivePathCollisionExitsOne()
@@ -1545,7 +1585,32 @@ void OutputPathCannotOverwriteProjectOrInputFiles()
     AssertEqual(hhpText, File.ReadAllText(hhpProject.File("help.hhp").FullName), "Project file contents should be preserved.");
 }
 
-void CaseOnlyArchiveSourceCollisionWarns()
+void OutputPathCannotOverwriteReplacedFlatCollisionSource()
+{
+    using var project = TempProject.Create();
+    const string losingText = "<html><body>ORIGINAL LOSING INPUT</body></html>";
+    project.WriteText("a/index.html", losingText);
+    project.WriteText("b/index.html", "<html><body>WINNING INPUT</body></html>");
+    project.WriteText(
+        "help.hhp",
+        string.Join(
+            "\r\n",
+            "[OPTIONS]",
+            "Compiled file=unused.chm",
+            "Flat=Yes",
+            "[FILES]",
+            "a/index.html",
+            "b/index.html",
+            string.Empty));
+
+    var result = RunHhc(project.File("help.hhp").FullName, "--out", project.File("a/index.html").FullName);
+
+    AssertEqual(1, result.ExitCode, result.ToString());
+    AssertContainsText(result.Stderr, "overwrite an input file");
+    AssertEqual(losingText, File.ReadAllText(project.File("a/index.html").FullName), "Replaced input source should be preserved.");
+}
+
+void CaseOnlyArchiveSourceCollisionIsQuiet()
 {
     using var project = TempProject.Create();
     project.WriteText("topic.html", "<html><body>LOWER TOPIC</body></html>");
@@ -1567,12 +1632,19 @@ void CaseOnlyArchiveSourceCollisionWarns()
 
     var result = RunHhc(project.File("help.hhp").FullName);
 
-    AssertEqual(0, result.ExitCode, result.ToString());
-    AssertContainsText(result.Stderr, "duplicate archive path");
+    AssertEqual(1, result.ExitCode, result.ToString());
+    AssertNotContainsText(result.Stderr, "duplicate archive path");
     var bytes = File.ReadAllBytes(project.File("case-collision.chm").FullName);
-    var entries = ReadChmUncompressedEntries(bytes);
-    AssertContainsBytes(entries["/topic.html"], Encoding.UTF8.GetBytes("LOWER TOPIC"), "first case-only source payload");
-    AssertNotContainsAscii(bytes, "UPPER TOPIC");
+    if (OperatingSystem.IsWindows())
+    {
+        AssertContainsAscii(bytes, "LOWER TOPIC");
+        AssertNotContainsAscii(bytes, "UPPER TOPIC");
+    }
+    else
+    {
+        AssertContainsAscii(bytes, "UPPER TOPIC");
+        AssertNotContainsAscii(bytes, "LOWER TOPIC");
+    }
 }
 
 void DotProjectPathEntriesAreIgnored()
@@ -1593,13 +1665,13 @@ void DotProjectPathEntriesAreIgnored()
 
     var result = RunHhc(project.File("help.hhp").FullName);
 
-    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertEqual(1, result.ExitCode, result.ToString());
     AssertNotContainsText(result.Stderr, "file not found: .");
     var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("dot-path.chm").FullName));
     AssertEqual(true, entries.ContainsKey("/index.html"), "Dot path entries should not prevent normal files from compiling.");
 }
 
-void FlatBaseHrefIsRemovedDuringRewrite()
+void FlatBaseHrefScannerFlattensArchiveWithoutRewritingPayload()
 {
     var text = """
         <html><head><base href="../assets/"></head>
@@ -1627,13 +1699,13 @@ void FlatBaseHrefIsRemovedDuringRewrite()
 
     var result = RunHhc(project.File("help.hhp").FullName);
 
-    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertEqual(1, result.ExitCode, result.ToString());
     var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("flat-base.chm").FullName));
     AssertEqual(true, entries.ContainsKey("/page.html"), "Flat page should be stored by basename.");
     AssertEqual(true, entries.ContainsKey("/logo.png"), "Base-resolved asset should be stored by flattened basename.");
     AssertEqual(false, entries.ContainsKey("/assets/logo.png"), "Flat archive should not keep the asset directory path.");
     var pageText = Encoding.UTF8.GetString(entries["/page.html"]);
-    AssertNotContainsText(pageText, "<base");
+    AssertContainsText(pageText, "<base href=\"../assets/\"");
     AssertContainsText(pageText, "src=\"logo.png\"");
 }
 
@@ -1666,7 +1738,7 @@ void FlatRewritePreservesExternalBaseReferences()
 
     var result = RunHhc(project.File("help.hhp").FullName);
 
-    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertEqual(1, result.ExitCode, result.ToString());
     AssertNotContainsText(result.Stderr, "images/logo.png");
     AssertNotContainsText(result.Stderr, "topics/usage.html");
     var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("external-base.chm").FullName));
@@ -1702,11 +1774,11 @@ void FlatLinkRewritePreservesReservedEscapes()
 
     var result = RunHhc(project.File("help.hhp").FullName);
 
-    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertEqual(1, result.ExitCode, result.ToString());
     var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("reserved-escape.chm").FullName));
     AssertEqual(true, entries.ContainsKey("/C#Guide.html"), "Decoded archive filename should still be embedded.");
     var indexText = Encoding.UTF8.GetString(entries["/index.html"]);
-    AssertContainsText(indexText, "href=\"C%23Guide.html\"");
+    AssertContainsText(indexText, "href=\"topics/C%23Guide.html\"");
     AssertNotContainsText(indexText, "href=\"C#Guide.html\"");
 }
 
@@ -1734,7 +1806,7 @@ static int ReadSystemLcid(byte[] systemFile)
     throw new InvalidOperationException("#SYSTEM code 4 entry was not found.");
 }
 
-void GeneratedTocEscapesReservedLocalUrls()
+void OmittedContentsFileHasNoGeneratedReservedToc()
 {
     using var project = TempProject.Create();
     project.WriteText("C#Guide.html", "<html><body>C# guide</body></html>");
@@ -1752,12 +1824,9 @@ void GeneratedTocEscapesReservedLocalUrls()
 
     var result = RunHhc(project.File("help.hhp").FullName);
 
-    AssertEqual(0, result.ExitCode, result.ToString());
+    AssertEqual(1, result.ExitCode, result.ToString());
     var entries = ReadChmUncompressedEntries(File.ReadAllBytes(project.File("toc-reserved.chm").FullName));
-    var tocText = Encoding.UTF8.GetString(entries["/Table of Contents.hhc"]);
-    AssertContainsText(tocText, "value=\"C%23Guide.html\"");
-    AssertContainsText(tocText, "value=\"literal%2523.html\"");
-    AssertNotContainsText(tocText, "value=\"C#Guide.html\"");
+    AssertEqual(false, entries.ContainsKey("/Table of Contents.hhc"), "Contents omission should not synthesize a TOC.");
     AssertEqual(true, entries.ContainsKey("/C#Guide.html"), "Reserved-character topic should still be embedded under decoded archive name.");
     AssertEqual(true, entries.ContainsKey("/literal%23.html"), "Literal-percent topic should still be embedded under literal archive name.");
 }

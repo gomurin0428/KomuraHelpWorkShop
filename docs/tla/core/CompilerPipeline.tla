@@ -46,7 +46,7 @@ ConfigVars == <<request, projectExists, allowMissing, requiredMissing, outputCol
 Phases == {"Start", "CliParsed", "ProjectLoaded", "FilesCollected", "MetadataBuilt", "Done"}
 Requests == {"Help", "Version", "ArgError", "Compile"}
 WriteOutcomes == {"Ok", "OutputUnwritable", "DirectoryEntryTooLarge", "DirectoryTooLarge", "ReservedInternalStreamCollision"}
-WarningTags == {"file not found", "Missing required files", "output collision", "write failed"}
+WarningTags == {"HHC5003", "output collision", "write failed"}
 
 Init ==
   /\ phase = "Start"
@@ -72,7 +72,7 @@ FinishCliTerminal ==
   /\ phase = "CliParsed"
   /\ request \in {"Help", "Version", "ArgError"}
   /\ phase' = "Done"
-  /\ exitCode' = IF request = "ArgError" THEN 2 ELSE 0
+  /\ exitCode' = 24
   /\ chmCreated' = FALSE
   /\ UNCHANGED <<ConfigVars, filesCollected, metadataBuilt, writerRan, warnings>>
 
@@ -88,27 +88,18 @@ ProjectMissing ==
   /\ request = "Compile"
   /\ ~projectExists
   /\ phase' = "Done"
-  /\ exitCode' = 1
+  /\ exitCode' = 0
   /\ chmCreated' = FALSE
   /\ UNCHANGED <<ConfigVars, filesCollected, metadataBuilt, writerRan, warnings>>
 
 CollectFiles ==
   /\ phase = "ProjectLoaded"
-  /\ requiredMissing => allowMissing
   /\ phase' = "FilesCollected"
   /\ filesCollected' = TRUE
-  /\ warnings' = IF requiredMissing THEN warnings \cup {"file not found"} ELSE warnings
+  /\ warnings' = IF requiredMissing THEN warnings \cup {"HHC5003"} ELSE warnings
   /\ UNCHANGED <<ConfigVars, metadataBuilt, writerRan, exitCode, chmCreated>>
 
-CollectRequiredMissingFails ==
-  /\ phase = "ProjectLoaded"
-  /\ requiredMissing
-  /\ ~allowMissing
-  /\ phase' = "Done"
-  /\ warnings' = warnings \cup {"file not found", "Missing required files"}
-  /\ exitCode' = 1
-  /\ chmCreated' = FALSE
-  /\ UNCHANGED <<ConfigVars, filesCollected, metadataBuilt, writerRan>>
+CollectRequiredMissingFails == FALSE
 
 OutputCollisionFails ==
   /\ phase = "FilesCollected"
@@ -131,7 +122,7 @@ WriteChm ==
   /\ writeOutcome = "Ok"
   /\ phase' = "Done"
   /\ writerRan' = TRUE
-  /\ exitCode' = 0
+  /\ exitCode' = IF requiredMissing THEN 0 ELSE 1
   /\ chmCreated' = TRUE
   /\ UNCHANGED <<ConfigVars, filesCollected, metadataBuilt, warnings>>
 
@@ -155,7 +146,6 @@ Next ==
   \/ LoadProject
   \/ ProjectMissing
   \/ CollectFiles
-  \/ CollectRequiredMissingFails
   \/ OutputCollisionFails
   \/ BuildMetadata
   \/ WriteChm
@@ -176,16 +166,16 @@ TypeOK ==
   /\ metadataBuilt \in BOOLEAN
   /\ writerRan \in BOOLEAN
   /\ warnings \in SUBSET WarningTags
-  /\ exitCode \in {-1, 0, 1, 2}
+  /\ exitCode \in {-1, 0, 1, 24}
   /\ chmCreated \in BOOLEAN
 
-RequiredMissingBlocksChm ==
-  phase = "Done" /\ request = "Compile" /\ projectExists /\ requiredMissing /\ ~allowMissing =>
-    /\ exitCode = 1
-    /\ chmCreated = FALSE
+RequiredMissingProducesPartialChm ==
+  phase = "Done" /\ request = "Compile" /\ projectExists /\ requiredMissing /\ ~outputCollision /\ writeOutcome = "Ok" =>
+    /\ exitCode = 0
+    /\ chmCreated = TRUE
 
 OutputCollisionBlocksMetadataAndWrite ==
-  phase = "Done" /\ request = "Compile" /\ projectExists /\ outputCollision /\ ~(requiredMissing /\ ~allowMissing) =>
+  phase = "Done" /\ request = "Compile" /\ projectExists /\ outputCollision =>
     /\ filesCollected
     /\ ~metadataBuilt
     /\ ~writerRan
@@ -200,10 +190,10 @@ SuccessfulCompileContract ==
     /\ filesCollected
     /\ metadataBuilt
     /\ writerRan
-    /\ exitCode = 0
+    /\ exitCode = IF requiredMissing THEN 0 ELSE 1
 
-ErrorDoesNotCreateChm ==
-  phase = "Done" /\ exitCode # 0 => chmCreated = FALSE
+FatalErrorDoesNotCreateChm ==
+  phase = "Done" /\ request = "Compile" /\ (~projectExists \/ outputCollision \/ writeOutcome # "Ok") => chmCreated = FALSE
 
 CliTerminalDoesNotCompile ==
   phase = "Done" /\ request \in {"Help", "Version", "ArgError"} =>

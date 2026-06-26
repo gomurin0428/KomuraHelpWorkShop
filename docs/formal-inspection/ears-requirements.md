@@ -6,19 +6,19 @@ Each statement is derived from the current implementation, then tagged as either
 
 | ID | EARS requirement | Status |
 | -- | -- | -- |
-| N-001 | The system SHALL return exit code 0 and avoid project loading when invoked in help or version mode. | accepted current behavior |
+| N-001 | The system SHALL return exit code 24 and avoid project loading when invoked in help, version, or usage-error mode. | accepted HHC-compatible behavior |
 | N-002 | WHEN a valid HHP project is compiled, the system SHALL load the project, collect files, build metadata, build a CHM package, publish output, and print a success summary. | accepted current behavior |
 | N-003 | WHEN required project-declared files are present, the system SHALL include them in the CHM under normalized archive paths. | accepted current behavior |
-| N-004 | WHERE link scanning is enabled, the system SHALL collect local links from HTML, CSS, HHC, and HHK files as optional inputs. | human review: silent read failures |
+| N-004 | WHERE link scanning is enabled, the system SHALL collect local links from HTML, CSS, HHC, and HHK files as optional inputs. | accepted compatibility behavior |
 | N-005 | The system SHALL emit required internal CHM streams for uncompressed CHM output. | accepted current behavior |
 | N-006 | WHEN CHM bytes are written, the system SHALL stage bytes in a same-directory temporary file before publishing the final output path. | accepted current behavior after remediation |
 | N-007 | WHEN unsupported HHW-compatible features are present, the system SHALL warn and continue if the project is otherwise compilable. | human review: warning-only policy |
 | N-008 | WHERE `--no-link-scan` is set, the system SHALL skip optional link discovery and compile only explicitly collected files. | accepted current behavior |
-| E-001 | IF CLI arguments are invalid, THEN the system SHALL exit with code 2 before project loading and output writing. | accepted current behavior |
-| E-002 | IF the HHP project file is missing, THEN the system SHALL exit with code 1 before file collection. | accepted current behavior |
-| E-003 | IF a required file is missing and `--allow-missing` is not set, THEN the system SHALL exit with code 1 before metadata construction and output writing. | accepted current behavior |
-| E-004 | IF a required file is missing and `--allow-missing` is set, THEN the system SHALL warn, omit that file, and continue compilation. | human review: metadata may still reference omitted files |
-| E-005 | IF two source files map to the same archive path, THEN the system SHALL keep the first and warn when the sources differ. | human review: first-wins policy |
+| E-001 | IF CLI arguments are invalid, THEN the system SHALL print usage and exit with code 24 before project loading and output writing. | accepted HHC-compatible behavior |
+| E-002 | IF the HHP project file is missing, THEN the system SHALL print `Unable to open`, exit with code 0, and stop before file collection. | accepted HHC-compatible behavior |
+| E-003 | IF a required file is missing, THEN the system SHALL emit HHC5003, omit that payload, publish a partial CHM, and exit with code 0. | accepted HHC-compatible behavior |
+| E-004 | IF `--allow-missing` is set for a missing required file, THEN the system SHALL preserve the same HHC5003 partial-output behavior. | human review: flag remains accepted for compatibility |
+| E-005 | IF two different source files map to the same archive path, THEN the later source SHALL replace the earlier source without a duplicate warning. | accepted HHC-compatible behavior |
 | E-006 | IF output publication fails, THEN the system SHALL exit with code 1 and preserve any existing final output. | accepted current behavior after remediation |
 | E-007 | IF a required input file cannot be read outside link scanning, THEN the system SHALL fail compilation before final output publication. | accepted current behavior |
 | E-008 | IF CHM metadata, a single directory entry, or the aggregate directory index exceeds supported limits, THEN the system SHALL fail with a compilation error before final output publication. | accepted current behavior |
@@ -29,10 +29,10 @@ Each statement is derived from the current implementation, then tagged as either
 | -- | -- | -- | -- |
 | U-001 | N-001/E-001 | IF CLI input is empty, malformed, duplicated, or has a missing option value, THEN the system SHALL not load a project or create a CHM. | tested |
 | U-002 | N-002/E-002 | IF project loading fails, THEN the system SHALL not collect files, build metadata, or publish output. | TLA + tested |
-| U-003 | N-003/E-003 | IF required file collection fails without `--allow-missing`, THEN the system SHALL not publish a CHM. | TLA + tested |
-| U-004 | N-004 | IF link scanning cannot read a scannable optional file, THEN the system SHALL treat it as having no outgoing links and continue. | TLA; human review for warning |
+| U-003 | N-003/E-003 | IF a required file is missing, THEN the system SHALL publish a partial CHM that omits the missing payload and reports HHC5003. | TLA + tested |
+| U-004 | N-004 | IF link scanning cannot read a scannable optional file, THEN the system SHALL treat it as having no outgoing links and continue without warning. | TLA + tested; accepted compatibility behavior |
 | U-005 | N-006/E-006 | IF temp-file writing, final move, or final replace fails, THEN the system SHALL not leave a partial final CHM. | TLA + tested |
-| U-006 | N-003/B-002 | IF a project-declared source path resolves outside the HHP directory, THEN the system SHALL use only the source basename as the CHM archive path. | TLA + tested after remediation |
+| U-006 | N-003/B-002 | IF a project-declared source path resolves outside the HHP directory, THEN the system SHALL still read that explicit source and use only the source basename as the CHM archive path. | TLA + tested after remediation; accepted compatibility behavior |
 | U-007 | N-004/B-004 | IF a discovered link is external, UNC, fragment-only, or empty, THEN the system SHALL not treat it as a local input file. | tested |
 | U-008 | B-005 | IF HHP options are duplicated, blank, balanced-quoted, or unbalanced-quoted, THEN the system SHALL parse them deterministically. | tested |
 | U-009 | B-006 | IF text bytes are invalid UTF-8 but a language encoding is declared, THEN the system SHALL decode with that declared encoding. | tested for CP932 seed; broader fuzz/property recommended |
@@ -61,11 +61,11 @@ Feature: Existing-code verification scenarios
     Then both files are included by basename
     And the sibling or parent directory name does not appear in the CHM archive path
 
-  Scenario: Outside project basename collisions warn and keep first
+  Scenario: Outside project basename collisions keep last silently
     Given two outside project files have the same basename
     When the project is compiled
-    Then a duplicate archive path warning is printed
-    And only the first file's bytes are included under that basename
+    Then no duplicate archive path warning is printed
+    And only the second file's bytes are included under that basename
 
   Scenario: Flat link rewriting is idempotent
     Given local HTML, HHC, CSS import, and CSS url targets include nested directories
