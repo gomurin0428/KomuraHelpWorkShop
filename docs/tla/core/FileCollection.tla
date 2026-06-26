@@ -5,7 +5,7 @@ EXTENDS Naturals, FiniteSets
 Abstract file collection model for Komura HHC.
 
 The model checks the recursive collection contract over a small filesystem:
-explicit roots, optional links, missing files, silent duplicate replacement, ignored
+explicit roots, optional links, missing files, silent duplicate replacement, replacement link scanning, ignored
 external targets, link cycles, and Flat=Yes archive naming.
 *)
 
@@ -106,6 +106,8 @@ LinkSet(file) ==
   CASE
     file = "index" -> {"intro", "logo", "external", "fragment"}
   [] file = "intro" -> {"logo"}
+  [] file = "aIndex" -> {"intro"}
+  [] file = "bIndex" -> {"logo"}
   [] file = "cycleA" -> {"cycleB"}
   [] file = "cycleB" -> {"cycleA"}
   [] OTHER -> {}
@@ -170,7 +172,7 @@ ProcessDuplicate(item) ==
   /\ item.file \in exists
   /\ LET a == ArchiveOf(item.file, flat) IN
      /\ a \in stored
-     /\ pending' = pending \ {item}
+     /\ pending' = IF storedSource[a] = item.file THEN pending \ {item} ELSE (pending \ {item}) \cup LinkItems(item.file)
      /\ attempted' = [attempted EXCEPT ![a] = @ \cup {item.file}]
      /\ storedSource' = [storedSource EXCEPT ![a] = item.file]
      /\ warnings' = warnings
@@ -234,6 +236,14 @@ DuplicateConflictIsSilentAndReplaced ==
     Cardinality(attempted[a]) > 1 =>
       /\ warnings = {}
       /\ storedSource[a] \in attempted[a]
+
+DuplicateReplacementLinksAreScanned ==
+  phase = "Done" /\ scanLinks /\ flat /\ roots = {"aIndex", "bIndex"} =>
+    LET winner == storedSource["index.html"] IN
+      CASE
+        winner = "aIndex" -> "intro.html" \in stored
+      [] winner = "bIndex" -> "logo.png" \in stored
+      [] OTHER -> FALSE
 
 FlatStorageConsistent ==
   flat => stored \subseteq FlatArchivePaths

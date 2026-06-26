@@ -9,7 +9,7 @@ The staged pipeline is: CLI parsing, HHP loading, file collection/link/path/enco
 | --- | --- | --- | --- |
 | 001 | `UC001_Cli_NoArgsHelp` | no arguments prints help | CliOptions.Parse, Program.Main |
 | 002 | `UC002_Cli_HelpOptions` | help option variants print help | CliOptions.Parse, Program.Main |
-| 003 | `UC003_Cli_Version` | version option prints version | CliOptions.Parse, Program.Main |
+| 003 | `UC003_Cli_Version` | version option prints help with version | CliOptions.Parse, Program.Main |
 | 004 | `UC004_Cli_UnknownOption` | unknown option is an argument error | CliOptions.Parse, Program.Main |
 | 005 | `UC005_Cli_OutMissingValue` | missing --out value is an argument error | CliOptions.Parse, Program.Main |
 | 006 | `UC006_Cli_MissingProjectArg` | missing project path is an argument error | CliOptions.Parse, Program.Main |
@@ -71,7 +71,7 @@ The staged pipeline is: CLI parsing, HHP loading, file collection/link/path/enco
 | 062 | `UC062_Error_DirectoryEntryTooLarge` | single directory entry too large fails | CliOptions.Parse, HhpProject.Load, ProjectCompiler.CollectFiles, ProjectCompiler.BuildMetadata, ChmWriter.Write, Program.Main |
 | 063 | `UC063_Error_DirectoryTooLarge` | directory too large for compiler version fails | CliOptions.Parse, HhpProject.Load, ProjectCompiler.CollectFiles, ProjectCompiler.BuildMetadata, ChmWriter.Write, Program.Main |
 | 064 | `UC064_Cli_HelpShortCircuits` | help option short-circuits later arguments | CliOptions.Parse, Program.Main |
-| 065 | `UC065_Cli_VersionShortCircuits` | version option short-circuits project loading | CliOptions.Parse, Program.Main |
+| 065 | `UC065_Cli_VersionShortCircuits` | version option short-circuits with help output | CliOptions.Parse, Program.Main |
 | 066 | `UC066_Cli_RepeatedOutLastWins` | repeated output option uses the last value | CliOptions.Parse, HhpProject.Load, ProjectCompiler.CollectFiles, ProjectCompiler.BuildMetadata, ChmWriter.Write |
 | 067 | `UC067_Cli_OutBeforeProject` | output option before the project path is accepted | CliOptions.Parse, HhpProject.Load, ProjectCompiler.CollectFiles, ProjectCompiler.BuildMetadata, ChmWriter.Write |
 | 068 | `UC068_Hhp_BlankCompiledFileIgnored` | blank compiled file option falls back to project stem | CliOptions.Parse, HhpProject.Load, ProjectCompiler.CollectFiles, ProjectCompiler.BuildMetadata, ChmWriter.Write |

@@ -2,7 +2,7 @@
 EXTENDS Integers
 
 (*
-Scenario: version option short-circuits project loading
+Scenario: version option short-circuits with help output
 Implementation slices reflected: CliOptions.Parse, Program.Main
 This model follows the concrete compile pipeline only as far as this use case needs:
 CLI parsing, HHP loading, file collection/link/path/encoding behavior, metadata construction,
@@ -46,7 +46,7 @@ ExpectedCollectionTags == {"Skipped"}
 ExpectedArchive == {}
 ExpectedMetadata == {}
 ExpectedWriterTags == {"Skipped"}
-ExpectedStdout == {"Banner", "Version"}
+ExpectedStdout == {"Banner", "Options", "Usage", "Version"}
 ExpectedStderr == {}
 ExpectedWarnings == {}
 ExpectedExit == 24

@@ -292,6 +292,8 @@ void VersionPrintsUsageBeforeProjectLoading()
 
     AssertEqual(24, result.ExitCode, result.ToString());
     AssertContainsText(result.Stdout, VersionInfo.Version);
+    AssertContainsText(result.Stdout, "Usage:");
+    AssertContainsText(result.Stdout, "Options:");
     AssertFileDoesNotExist(project.File("help.chm"));
 }
 

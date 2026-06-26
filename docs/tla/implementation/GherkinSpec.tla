@@ -621,7 +621,7 @@ SpecStdout(s) ==
   CASE
     s = "UC001_Cli_NoArgsHelp" -> {"Banner", "Options", "Usage"}
   [] s = "UC002_Cli_HelpOptions" -> {"Banner", "Options", "Usage"}
-  [] s = "UC003_Cli_Version" -> {"Banner", "Version"}
+  [] s = "UC003_Cli_Version" -> {"Banner", "Options", "Usage", "Version"}
   [] s = "UC004_Cli_UnknownOption" -> {"Banner", "Options", "Usage"}
   [] s = "UC005_Cli_OutMissingValue" -> {"Banner", "Options", "Usage"}
   [] s = "UC006_Cli_MissingProjectArg" -> {"Banner", "Options", "Usage"}
@@ -683,7 +683,7 @@ SpecStdout(s) ==
   [] s = "UC062_Error_DirectoryEntryTooLarge" -> {}
   [] s = "UC063_Error_DirectoryTooLarge" -> {}
   [] s = "UC064_Cli_HelpShortCircuits" -> {"Banner", "Options", "Usage"}
-  [] s = "UC065_Cli_VersionShortCircuits" -> {"Banner", "Version"}
+  [] s = "UC065_Cli_VersionShortCircuits" -> {"Banner", "Options", "Usage", "Version"}
   [] s = "UC066_Cli_RepeatedOutLastWins" -> {"Banner", "Compiled", "Files"}
   [] s = "UC067_Cli_OutBeforeProject" -> {"Banner", "Compiled", "Files"}
   [] s = "UC068_Hhp_BlankCompiledFileIgnored" -> {"Banner", "Compiled", "Files"}

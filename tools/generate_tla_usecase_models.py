@@ -354,7 +354,7 @@ WRITER_IMPL = ("CliOptions.Parse", "HhpProject.Load", "ProjectCompiler.CollectFi
 CASES: list[UseCase] = [
     cli(1, "Cli_NoArgsHelp", "no arguments prints help", "Help", stdout=("Banner", "Usage", "Options")),
     cli(2, "Cli_HelpOptions", "help option variants print help", "Help", stdout=("Banner", "Usage", "Options"),),
-    cli(3, "Cli_Version", "version option prints version", "Version", stdout=("Banner", "Version")),
+    cli(3, "Cli_Version", "version option prints help with version", "Version", stdout=("Banner", "Version", "Usage", "Options")),
     cli(4, "Cli_UnknownOption", "unknown option is an argument error", "ArgError", stdout=("Banner", "Usage", "Options")),
     cli(5, "Cli_OutMissingValue", "missing --out value is an argument error", "ArgError", stdout=("Banner", "Usage", "Options")),
     cli(6, "Cli_MissingProjectArg", "missing project path is an argument error", "ArgError", stdout=("Banner", "Usage", "Options")),
@@ -425,7 +425,7 @@ CASES: list[UseCase] = [
     write_fail(63, "Error_DirectoryTooLarge", "directory too large for compiler version fails", writer_tags=("DirectoryTooLarge",), stderr=("directory is too large for this compiler version",)),
 
     cli(64, "Cli_HelpShortCircuits", "help option short-circuits later arguments", "Help", stdout=("Banner", "Usage", "Options")),
-    cli(65, "Cli_VersionShortCircuits", "version option short-circuits project loading", "Version", stdout=("Banner", "Version")),
+    cli(65, "Cli_VersionShortCircuits", "version option short-circuits with help output", "Version", stdout=("Banner", "Version", "Usage", "Options")),
     UseCase(66, "Cli_RepeatedOutLastWins", "repeated output option uses the last value", collection_tags=tags("RequiredFiles"), archive=tags("index.html"), metadata=tags("Output:project/final.chm", "Title:Project Title", "Hhp:LastOptionWins"), impl=COMPILE_IMPL, specific=('"Output:project/final.chm" \\in metadata', '"Hhp:LastOptionWins" \\in metadata')),
     UseCase(67, "Cli_OutBeforeProject", "output option before the project path is accepted", collection_tags=tags("RequiredFiles"), archive=tags("index.html"), metadata=tags("Output:project/dist/output.chm", "Title:Project Title"), impl=COMPILE_IMPL, specific=('"Output:project/dist/output.chm" \\in metadata',)),
     UseCase(68, "Hhp_BlankCompiledFileIgnored", "blank compiled file option falls back to project stem", collection_tags=tags("RequiredFiles"), archive=tags("index.html"), metadata=tags("Output:project/manual.chm", "Title:manual", "Hhp:BlankOptionIgnored"), impl=COMPILE_IMPL, specific=('"Hhp:BlankOptionIgnored" \\in metadata', '"Output:project/manual.chm" \\in metadata')),
